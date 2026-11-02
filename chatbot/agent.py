@@ -258,6 +258,7 @@ class ChatSession:
     pending: dict[str, tuple[int, float]] = field(default_factory=dict)  # 메일 확인 대기: 키 -> (차례, 시각)
     emails_sent: int = 0
     tool_log: list[str] = field(default_factory=list)  # 디버그용: 어떤 도구를 불렀는지
+    usage: dict[str, int] = field(default_factory=lambda: {"input": 0, "output": 0, "calls": 0})  # 토큰 사용량
 
 
 # ---------------------------------------------------------------- 에이전트
@@ -359,6 +360,11 @@ class Agent:
         try:
             for rnd in range(MAX_TOOL_ROUNDS):
                 resp = self._create(session.messages, last_round=rnd == MAX_TOOL_ROUNDS - 1)
+                u = getattr(resp, "usage", None)
+                if u is not None:
+                    session.usage["input"] += getattr(u, "input_tokens", 0) or 0
+                    session.usage["output"] += getattr(u, "output_tokens", 0) or 0
+                session.usage["calls"] += 1
                 if resp.stop_reason == "refusal":
                     del session.messages[checkpoint:]
                     return REFUSAL_TEXT

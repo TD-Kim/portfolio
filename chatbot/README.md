@@ -44,8 +44,14 @@ streamlit run chatbot/app.py                              # http://localhost:850
 테스트:
 
 ```bash
-cd chatbot && python -m unittest
+cd chatbot && python -m unittest          # 가짜 클라이언트, 무료
+python chatbot/live_check.py              # 실제 Claude 로 시나리오 10개 점검 (키 필요, 1센트 미만)
 ```
+
+`live_check.py` 는 기술·프로젝트 질문, 한글 기술명, 자료에 없는 정보(연봉), 관계없는 요청, 프롬프트 탈취,
+메시지 확인 흐름, 확인 우회를 실제 모델로 돌리고 자동으로 판정합니다. 메일은 실제로 보내지 않습니다.
+결과 전문은 `chatbot/results/` 에 남습니다.
+(Claude Code 클라우드 세션 안에서는 GitHub API 가 막혀 있어 `github` 시나리오만 실패할 수 있습니다.)
 
 ## 설정값 (`.streamlit/secrets.toml` 또는 환경변수)
 
