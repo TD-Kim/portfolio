@@ -428,35 +428,102 @@ def build_agent(api_key: str | None = None) -> Agent:
 # ---------------------------------------------------------------- 접근 제한
 
 
-def parse_access_codes(raw: str | None) -> dict[str, str]:
-    """ACCESS_CODES="카카오인사팀:k7f2q9,친구:m3x8" -> {코드: 이름}.
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-    이름 없이 코드만 써도 된다("k7f2q9,m3x8"). 비어 있으면 {} = 누구나 사용 가능.
+
+@dataclass
+class InviteCode:
+    label: str
+    expires_on: str | None = None  # "YYYY-MM-DD" (한국 시간 그날 끝까지 사용 가능)
+
+
+def parse_access_codes(raw: str | None) -> dict[str, InviteCode]:
+    """ACCESS_CODES 를 {코드: InviteCode} 로 읽는다. 쉼표로 구분하고 줄바꿈은 무시한다.
+
+    한 항목의 형식:
+      코드                       -> 이름 없음, 날짜 제한 없음
+      이름:코드                  -> 날짜 제한 없음
+      이름:코드:2026-11-30       -> 2026-11-30(한국 시간) 이 지나면 만료
+    비어 있으면 {} = 누구나 사용 가능.
     """
-    codes: dict[str, str] = {}
+    codes: dict[str, InviteCode] = {}
     for part in (raw or "").split(","):
-        part = part.strip()
-        if not part:
+        bits = [b.strip() for b in part.strip().split(":")]
+        if not bits or not bits[-1]:
             continue
-        label, _, code = part.rpartition(":")
-        code = code.strip()
-        if code:
-            codes[code] = label.strip() or code[:3] + "…"
+        expires = bits.pop() if len(bits) >= 2 and DATE_RE.match(bits[-1]) else None
+        code = bits.pop()
+        if not code:
+            continue
+        label = ":".join(bits).strip() or code[:3] + "…"
+        codes[code] = InviteCode(label, expires)
     return codes
 
 
-def check_access_code(codes: dict[str, str], given: str | None) -> str | None:
-    """맞는 코드면 그 이름, 아니면 None. 시간 차로 코드를 추측하지 못하게 비교한다."""
-    import hmac
+class AccessControl:
+    """초대 코드 확인과 만료.
 
-    given = (given or "").strip()
-    if not given:
-        return None
-    found = None
-    for code, label in codes.items():
-        if hmac.compare_digest(code.encode(), given.encode()):
-            found = label
-    return found
+    - 날짜 만료: Secrets 에 적은 날짜가 지나면 만료. 서버가 다시 시작돼도 그대로 지켜진다.
+    - 첫 사용 후 만료: 코드가 처음 쓰인 뒤 ttl_hours 가 지나면 만료. 처음 쓴 시각은 메모리에만 있어서
+      무료 서버가 잠들었다 깨면 다시 센다. 확실한 기한이 필요하면 날짜 만료를 함께 쓴다.
+    """
+
+    def __init__(self, codes: dict[str, InviteCode], ttl_hours: float = 0, clock: Callable[[], float] = time.time):
+        import threading
+
+        self.codes = codes
+        self.ttl = ttl_hours * 3600
+        self.clock = clock
+        self.first_used: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.codes)
+
+    def _match(self, given: str | None) -> str | None:
+        import hmac
+
+        given = (given or "").strip()
+        if not given:
+            return None
+        found = None
+        for code in self.codes:  # 시간 차로 코드를 추측하지 못하게 전부 같은 방식으로 비교한다
+            if hmac.compare_digest(code.encode(), given.encode()):
+                found = code
+        return found
+
+    def _expired(self, code: str, now: float) -> bool:
+        inv = self.codes[code]
+        if inv.expires_on:
+            today = time.strftime("%Y-%m-%d", time.gmtime(now + 9 * 3600))  # 한국 시간 날짜
+            if today > inv.expires_on:
+                return True
+        if self.ttl and code in self.first_used and now - self.first_used[code] > self.ttl:
+            return True
+        return False
+
+    def enter(self, given: str | None) -> tuple[str, str | None]:
+        """입장 시도. ("ok", 코드) / ("expired", None) / ("invalid", None)."""
+        code = self._match(given)
+        if code is None:
+            return "invalid", None
+        now = self.clock()
+        with self._lock:
+            if self._expired(code, now):
+                return "expired", None
+            self.first_used.setdefault(code, now)
+        return "ok", code
+
+    def still_valid(self, code: str | None) -> bool:
+        """이미 들어온 방문자가 질문할 때마다 확인한다. 열어 둔 탭도 만료되면 막힌다."""
+        if code not in self.codes:
+            return False
+        with self._lock:
+            return not self._expired(code, self.clock())
+
+    def label(self, code: str) -> str:
+        return self.codes[code].label
 
 
 class DailyBudget:
