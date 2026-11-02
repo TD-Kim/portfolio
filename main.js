@@ -64,24 +64,28 @@
     .join("");
 
   /* ---------- chatbot: 초대 코드 확인 → 깨우는 중 안내 → 이동 ---------- */
-  // 초대 코드는 링크(?code=...)로 받거나 직접 입력한다. 한 번 받은 코드는 이 브라우저에 기억해서
-  // 나중에 그냥 사이트 주소로 와도 바로 쓸 수 있게 한다. 마감일이 지나면 저절로 잊는다.
+  // 초대 코드는 링크(?code=...)로 받거나 직접 입력한다. 관리자 페이지에서 만든 코드(i1.내용.서명)는
+  // 내용에 마감일이 들어 있어서, 그날까지만 이 브라우저에 기억한다. 날짜를 알 수 없는 코드
+  // (ACCESS_CODES 로 만든 코드, 잘못 입력한 값)는 기억하지 않는다. 입장 여부는 항상 챗봇이 다시 확인한다.
   const STORE = "portfolio-invite";
   const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   const untilOf = (c) => {
-    // 서명 코드(i1.내용.서명)는 내용에 마감일이 들어 있다. 그 밖의 코드는 30일 동안 기억한다.
     try {
-      if (c.startsWith("i1.")) {
-        const b64 = c.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-        const json = new TextDecoder().decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
-        const e = JSON.parse(json).e;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(e)) return e;
-      }
-    } catch {}
-    return new Date(Date.now() + 30 * 86400e3 + 9 * 3600e3).toISOString().slice(0, 10);
+      const parts = c.split(".");
+      if (parts.length !== 3 || parts[0] !== "i1") return null;
+      const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const json = new TextDecoder().decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
+      const e = JSON.parse(json).e;
+      return /^\d{4}-\d{2}-\d{2}$/.test(e) ? e : null;
+    } catch {
+      return null;
+    }
   };
   const saveCode = (c) => {
-    try { localStorage.setItem(STORE, JSON.stringify({ code: c, until: untilOf(c) })); } catch {}
+    const until = untilOf(c);
+    try {
+      if (until && until >= kstToday()) localStorage.setItem(STORE, JSON.stringify({ code: c, until }));
+    } catch {}
   };
   const loadCode = () => {
     try {
@@ -140,7 +144,7 @@
     const c = gateInput.value.trim();
     if (!c) return gateInput.focus();
     code = c;
-    saveCode(c); // 맞는 코드인지는 챗봇이 확인한다
+    saveCode(c); // 마감일이 든 코드만 기억된다. 맞는 코드인지는 챗봇이 확인한다
     openChat();
   });
   $$("[data-wake-cancel], [data-gate-close]").forEach((b) => b.addEventListener("click", closeAll));
