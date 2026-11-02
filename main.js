@@ -20,17 +20,25 @@
   const skills = D.skills.map((s) => `<span>${esc(s)}</span>`).join("");
   $(".marquee-track").innerHTML = skills + skills; // 두 번 반복해서 끊김 없이 흐르게
 
-  $(".projects").innerHTML = D.projects
-    .map(
-      (p, i) => `
-      <a class="card reveal" href="${esc(p.link)}" ${p.link.startsWith("http") ? 'target="_blank" rel="noopener"' : ""}>
-        <span class="card-num">${String(i + 1).padStart(2, "0")}</span>
-        <span class="card-arrow">↗</span>
+  // 링크가 있으면 <a>, 없으면 <article> 카드
+  const card = (p, i) => {
+    const meta = [p.period, p.org].filter(Boolean).map(esc).join(" · ");
+    const inner = `
+        <span class="card-num">${String(i + 1).padStart(2, "0")}${meta ? ` <span class="card-meta">${meta}</span>` : ""}</span>
+        ${p.status ? `<span class="badge">${esc(p.status)}</span>` : ""}
+        ${p.link ? '<span class="card-arrow">↗</span>' : ""}
         <h3>${esc(p.title)}</h3>
         <p>${esc(p.desc)}</p>
-        <div class="tags">${p.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>
-      </a>`
-    )
+        <div class="tags">${p.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>`;
+    return p.link
+      ? `<a class="card reveal" href="${esc(p.link)}" target="_blank" rel="noopener">${inner}</a>`
+      : `<article class="card reveal">${inner}</article>`;
+  };
+  $(".projects:not(.learning)").innerHTML = D.projects.map(card).join("");
+  $(".projects.learning").innerHTML = D.learning.map(card).join("");
+
+  $(".creds-list").innerHTML = D.credentials
+    .map((c) => `<li><span class="mono">${esc(c.year)}</span><b>${esc(c.title)}</b>${c.desc ? `<small>${esc(c.desc)}</small>` : ""}</li>`)
     .join("");
 
   $(".timeline").innerHTML = D.experience
