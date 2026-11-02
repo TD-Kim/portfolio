@@ -96,7 +96,16 @@ st.markdown(
 .hero-sub { color: #9a98b0; margin: 0.25rem 0 1.4rem; }
 .hero-sub b { color: #ecebf5; }
 div[data-testid="stButton"] button { border-radius: 999px; width: 100%; text-align: left; }
-.foot { color: #6f6d85; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; }
+.foot { color: #8e8ca6; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; }
+/* 키워드 표: 왼쪽 칸은 가장 긴 글자에 맞춰 한 줄로, 나머지 폭은 오른쪽 칸이 쓴다 */
+[data-testid="stMarkdownContainer"] table th:first-child,
+[data-testid="stMarkdownContainer"] table td:first-child { white-space: nowrap; width: 1%; }
+/* 키워드는 글자 중간에서 끊지 않고 하나씩 통째로 줄을 넘긴다 */
+[data-testid="stMarkdownContainer"] table td code { white-space: nowrap; display: inline-block; margin: 2px 0; }
+/* 보내기 버튼을 누르기 쉬운 크기로 */
+[data-testid="stChatInputSubmitButton"] { min-width: 44px; min-height: 44px; }
+/* 키보드 포커스 표시 */
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #00d4ff !important; outline-offset: 2px; }
 </style>
 """,
     unsafe_allow_html=True,

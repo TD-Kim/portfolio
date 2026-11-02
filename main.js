@@ -5,6 +5,11 @@
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 움직임 멈추기: 동작 줄이기 설정이 없어도 누구나 버튼으로 멈출 수 있다 (WCAG 2.2.2)
+  let still = reduced;
+  try { still = still || localStorage.getItem("portfolio-still") === "1"; } catch {}
+  const html = document.documentElement;
+  html.classList.toggle("still", still);
   const fine = matchMedia("(pointer: fine)").matches;
 
   /* ---------- render content ---------- */
@@ -22,7 +27,8 @@
     .map((s) => `<div class="stat"><b data-count="${s.value}" data-suffix="${esc(s.suffix)}">0</b><span>${esc(s.label)}</span></div>`)
     .join("");
   const skills = D.skills.map((s) => `<span>${esc(s)}</span>`).join("");
-  $(".marquee-track").innerHTML = skills + skills; // 두 번 반복해서 끊김 없이 흐르게
+  // 두 번 반복해서 끊김 없이 흐르게. 두 번째 묶음은 화면 읽기 프로그램이 두 번 읽지 않게 숨긴다
+  $(".marquee-track").innerHTML = skills + skills.replace(/<span>/g, '<span aria-hidden="true">');
 
   // 링크가 있으면 <a>, 없으면 <article> 카드
   const card = (p, i) => {
@@ -143,48 +149,85 @@
     `mailto:${D.contact.email}?subject=${encodeURIComponent("포트폴리오 챗봇 초대 코드 요청")}` +
     `&body=${encodeURIComponent("안녕하세요, 포트폴리오를 보고 연락드립니다.\n\n회사/이름: \n")}`;
 
-  let wakeTimer;
-  const closeAll = () => { clearTimeout(wakeTimer); wake.hidden = true; gate.hidden = true; };
+  let wakeTimer, opener = null;
+  const outside = () => $$("body > header, body > main, body > footer, body > .ask-fab");
+  const focusables = (d) =>
+    $$("a[href], button:not([disabled]), input:not([disabled])", d).filter((e) => e.offsetParent !== null);
+  const openDialog = (d, first) => {
+    if (!opener) opener = document.activeElement;
+    [gate, wake].forEach((x) => (x.hidden = x !== d));
+    outside().forEach((x) => (x.inert = true)); // 뒤쪽 페이지는 눌리지도, 포커스되지도 않게
+    (first || focusables(d)[0])?.focus();
+  };
+  const closeAll = () => {
+    clearTimeout(wakeTimer);
+    wake.hidden = gate.hidden = true;
+    outside().forEach((x) => (x.inert = false));
+    if (opener && document.contains(opener)) opener.focus(); // 연 버튼으로 포커스를 돌려준다
+    opener = null;
+  };
   const openChat = () => {
-    gate.hidden = true;
     go.href = chatUrlFor(code);
-    wake.hidden = false;
-    go.focus();
+    openDialog(wake, go);
     wakeTimer = setTimeout(() => (location.href = go.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
   };
+  const gateError = $("[data-gate-error]");
   $$("[data-ask]").forEach((b) =>
     b.addEventListener("click", () => {
       if (code) return openChat();
       // 코드가 없으면 서버를 깨우며 기다리게 하지 않고 여기서 바로 안내한다
-      gate.hidden = false;
       gateInput.value = "";
-      gateInput.focus();
+      gateError.hidden = true;
+      gateInput.removeAttribute("aria-invalid");
+      openDialog(gate, gateInput);
     })
   );
   $(".gate form").addEventListener("submit", (e) => {
     e.preventDefault();
     const c = cleanCode(gateInput.value);
-    if (!c) return gateInput.focus();
+    if (!c) {
+      gateError.hidden = false; // 빈칸으로 누르면 칸 바로 아래에 안내한다
+      gateInput.setAttribute("aria-invalid", "true");
+      return gateInput.focus();
+    }
     code = c;
     saveCode(c); // 마감일이 든 코드만 기억된다. 맞는 코드인지는 챗봇이 확인한다
     openChat();
   });
   $$("[data-wake-cancel], [data-gate-close]").forEach((b) => b.addEventListener("click", closeAll));
-  addEventListener("keydown", (e) => e.key === "Escape" && closeAll());
+  addEventListener("keydown", (e) => {
+    const d = [gate, wake].find((x) => !x.hidden);
+    if (!d) return;
+    if (e.key === "Escape") return closeAll();
+    if (e.key !== "Tab") return;
+    const f = focusables(d);
+    if (!f.length) return;
+    const [first, last] = [f[0], f[f.length - 1]];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   addEventListener("pageshow", closeAll); // 뒤로 가기로 돌아왔을 때 안내창 닫기
 
   /* ---------- typing effect ---------- */
   const typed = $(".typed");
-  if (reduced) typed.textContent = D.roles[0];
+  const caret = $(".caret");
+  const settle = () => { typed.textContent = D.roles[0]; caret.classList.add("done"); };
+  if (still) settle();
   else {
-    let r = 0, c = 0, del = false;
+    let r = 0, c = 0, del = false, rounds = 0;
     const tick = () => {
+      if (html.classList.contains("still")) return settle();
       const word = D.roles[r];
       c += del ? -1 : 1;
       typed.textContent = word.slice(0, c);
       let delay = del ? 40 : 90;
-      if (!del && c === word.length) { del = true; delay = 1600; }
-      else if (del && c === 0) { del = false; r = (r + 1) % D.roles.length; delay = 300; }
+      if (!del && c === word.length) {
+        if (r === 0 && rounds >= 2) return caret.classList.add("done"); // 두 바퀴 뒤 첫 직함에서 멈춘다
+        del = true; delay = 1600;
+      } else if (del && c === 0) {
+        del = false; r = (r + 1) % D.roles.length; delay = 300;
+        if (r === 0) rounds++;
+      }
       setTimeout(tick, delay);
     };
     tick();
@@ -230,7 +273,7 @@
 
     const tr = timeline.getBoundingClientRect();
     const fill = Math.min(Math.max((innerHeight * 0.6 - tr.top) / tr.height, 0), 1);
-    timeline.style.setProperty("--fill", `${fill * 100}%`);
+    timeline.style.setProperty("--fill", fill.toFixed(3));
 
     let current = -1;
     sections.forEach((s, i) => { if (s.getBoundingClientRect().top < innerHeight * 0.4) current = i; });
@@ -292,7 +335,7 @@
   const draw = () => {
     ctx.clearRect(0, 0, W, H);
     for (const p of pts) {
-      if (!reduced) {
+      if (!html.classList.contains("still")) {
         const dx = p.x - mouse.x, dy = p.y - mouse.y, d = Math.hypot(dx, dy);
         if (d < 140 && d > 0) { p.x += (dx / d) * 1.2; p.y += (dy / d) * 1.2; } // 마우스 피하기
         p.x += p.vx; p.y += p.vy;
@@ -312,7 +355,24 @@
         }
       }
     }
-    if (!reduced) requestAnimationFrame(draw);
+    if (!html.classList.contains("still")) requestAnimationFrame(draw);
   };
   draw();
+
+  /* ---------- 움직임 멈추기 버튼 ---------- */
+  const toggle = $("[data-still]");
+  const syncToggle = () => {
+    const on = html.classList.contains("still");
+    toggle.setAttribute("aria-pressed", String(on));
+    toggle.textContent = on ? "▶ 움직임 다시 켜기" : "⏸ 움직임 멈추기";
+  };
+  toggle.addEventListener("click", () => {
+    const on = !html.classList.contains("still");
+    html.classList.toggle("still", on);
+    try { localStorage.setItem("portfolio-still", on ? "1" : "0"); } catch {}
+    if (on) settle();
+    else requestAnimationFrame(draw);
+    syncToggle();
+  });
+  syncToggle();
 })();

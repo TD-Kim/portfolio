@@ -60,7 +60,7 @@ body::before {
 .logo { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; }
 .nav nav { display: flex; gap: 4px; }
 .nav nav a {
-  padding: 6px 14px; border-radius: 999px; font-size: 0.9rem; color: var(--muted);
+  padding: 10px 14px; border-radius: 999px; font-size: 0.9rem; color: var(--muted);
   transition: color 0.2s, background 0.2s;
 }
 .nav nav a:hover, .nav nav a.active { color: var(--text); background: var(--surface); }
@@ -76,11 +76,12 @@ body::before {
   font-size: clamp(3.2rem, 11vw, 8rem);
   background: var(--grad); background-size: 200% auto;
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: shine 6s linear infinite;
+  animation: shine 6s linear 3;
 }
 @keyframes shine { to { background-position: 200% center; } }
 .hero-role { font-family: var(--display); font-size: clamp(1.4rem, 4vw, 2.4rem); margin-top: 8px; min-height: 1.5em; }
 .caret { color: var(--a3); animation: blink 1s steps(1) infinite; margin-left: 2px; }
+.caret.done { animation: none; opacity: 0; }
 @keyframes blink { 50% { opacity: 0; } }
 .hero-tagline { color: var(--muted); font-size: 1.1rem; margin-top: 18px; max-width: 560px; }
 .hero-cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
@@ -101,7 +102,7 @@ body::before {
 }
 .scroll-hint span {
   position: absolute; left: 50%; top: 8px; width: 4px; height: 8px; margin-left: -2px;
-  background: var(--a2); border-radius: 2px; animation: scroll 1.8s infinite;
+  background: var(--a2); border-radius: 2px; animation: scroll 1.8s 4;
 }
 @keyframes scroll { 0% { opacity: 0; transform: translateY(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(14px); } }
 
@@ -113,8 +114,8 @@ body::before {
 }
 .section-title .num { font-size: 0.95rem; color: var(--a1); }
 
-.reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.9s cubic-bezier(.2,.8,.2,1), transform 0.9s cubic-bezier(.2,.8,.2,1); }
-.reveal.in { opacity: 1; transform: none; }
+.js .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.9s cubic-bezier(.2,.8,.2,1), transform 0.9s cubic-bezier(.2,.8,.2,1); }
+.js .reveal.in { opacity: 1; transform: none; }
 
 /* about */
 .about-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 48px; align-items: center; }
@@ -171,7 +172,7 @@ body::before {
 /* experience + credentials */
 .exp-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 56px; align-items: start; }
 .creds { padding: 28px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-.creds-title { font-size: 0.85rem; color: var(--a1); font-weight: 400; margin-bottom: 16px; }
+.creds-title { font-size: 0.85rem; color: #a594ff; font-weight: 400; margin-bottom: 16px; }
 .creds-list { list-style: none; display: grid; gap: 14px; }
 .creds-list li { display: grid; grid-template-columns: 52px 1fr; column-gap: 12px; }
 .creds-list .mono { color: var(--a2); font-size: 0.85rem; padding-top: 2px; }
@@ -181,8 +182,8 @@ body::before {
 .timeline { list-style: none; position: relative; padding-left: 32px; }
 .timeline::before { content: ""; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 2px; background: var(--border); }
 .timeline::after {
-  content: ""; position: absolute; left: 6px; top: 8px; width: 2px; height: var(--fill, 0%);
-  background: var(--grad); transition: height 0.2s linear;
+  content: ""; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 2px;
+  background: var(--grad); transform-origin: top; transform: scaleY(var(--fill, 0)); transition: transform 0.2s linear;
 }
 .timeline li { position: relative; padding-bottom: 48px; }
 .timeline li::before {
@@ -202,7 +203,7 @@ body::before {
   display: inline-block; margin: 28px 0 36px; font-family: var(--display); font-weight: 700;
   font-size: clamp(1.6rem, 6vw, 3.6rem); letter-spacing: -0.03em; word-break: break-all;
   background: var(--grad); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: shine 6s linear infinite;
+  animation: shine 6s linear 3;
 }
 .contact-links { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
 
@@ -211,14 +212,23 @@ body::before {
 /* ---------- responsive ---------- */
 @media (max-width: 760px) {
   .nav { padding: 10px 10px 10px 18px; gap: 8px; }
-  .nav nav a { padding: 6px 8px; font-size: 0.78rem; }
+  .nav nav a { padding: 12px 6px; font-size: 0.85rem; }
+  .footer { padding-bottom: 104px; } /* 떠 있는 버튼이 맨 아래 글자를 가리지 않게 */
   .about-grid, .projects, .exp-grid { grid-template-columns: 1fr; }
   .section { padding: 90px 16px; }
   .cursor-glow { display: none; }
 }
-@media (max-width: 420px) {
+@media (max-width: 520px) {
+  /* 좁은 화면: 로고를 숨기고 메뉴 5개가 바를 고르게 채우게 해서 마지막 메뉴가 밀려나지 않게 한다 */
   .nav .logo { display: none; }
-  .nav { justify-content: center; }
+  .nav { padding: 4px 6px; }
+  .nav nav { flex: 1; justify-content: space-between; gap: 0; }
+}
+@media (max-width: 389px) {
+  .nav nav a { padding: 12px 4px; font-size: 0.82rem; }
+}
+@media (max-width: 339px) {
+  .nav nav a { padding: 12px 3px; font-size: 0.78rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -228,7 +238,7 @@ body::before {
 }
 
 /* ---------- chatbot entry ---------- */
-.link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--a2); cursor: pointer; }
+.link-btn { background: none; border: 0; padding: 10px 0; min-height: 44px; font: inherit; color: var(--a2); cursor: pointer; }
 .link-btn:hover { text-decoration: underline; }
 button.btn { border: 0; font: inherit; font-weight: 600; cursor: pointer; color: inherit; }
 button.btn-primary { color: #0b0b12; }
@@ -241,7 +251,7 @@ button.btn-ghost { border: 1px solid var(--border); }
   display: flex; align-items: center; gap: 8px; padding: 14px 20px; border: 0; border-radius: 999px;
   font: inherit; font-weight: 700; color: #0b0b12; background: var(--grad); cursor: pointer;
   box-shadow: 0 12px 40px -8px rgba(124, 92, 255, 0.8); transition: transform 0.2s;
-  animation: fab-pulse 2.6s ease-in-out infinite;
+  animation: fab-pulse 2.6s ease-in-out 4;
 }
 .ask-fab:hover { transform: translateY(-3px) scale(1.04); }
 @keyframes fab-pulse { 50% { box-shadow: 0 12px 50px -4px rgba(0, 212, 255, 0.9); } }
@@ -281,3 +291,30 @@ button.btn-ghost { border: 1px solid var(--border); }
 .gate .wake-actions { margin-top: 16px; }
 .wake-card { min-width: 0; }
 .gate-form input { width: 100%; }
+
+/* ---------- 접근성 보강 ---------- */
+/* 키보드로 이동할 때만 보이는 또렷한 포커스 표시 */
+:where(a, button, input, [tabindex]):focus-visible { outline: 2px solid var(--a2); outline-offset: 3px; border-radius: 8px; }
+.gate-form input:focus-visible { outline-offset: 2px; border-radius: 999px; }
+
+/* 스크롤 안내 아이콘: 보이는 크기는 그대로, 누를 수 있는 영역만 48px 이상 */
+.scroll-hint::before { content: ""; position: absolute; inset: -8px -12px; }
+
+/* 움직임 멈추기: 모든 반복 애니메이션 정지 */
+.still *, .still *::before, .still *::after { animation-play-state: paused !important; }
+.still-toggle {
+  font: inherit; font-size: 0.85rem; color: var(--muted); background: none; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 999px; padding: 10px 16px; min-height: 44px; margin-bottom: 12px;
+}
+.still-toggle:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.3); }
+
+/* 코드 입력칸 라벨과 안내 */
+.gate-form { flex-wrap: wrap; }
+.gate-label { flex-basis: 100%; text-align: left; font-size: 0.9rem; font-weight: 600; color: var(--text); padding-left: 6px; }
+.gate-error { flex-basis: 100%; text-align: left; font-size: 0.85rem; color: #ff9bd9; padding-left: 6px; margin: 0; }
+.gate-form input[aria-invalid="true"] { border-color: #ff9bd9; }
+
+/* 자바스크립트가 꺼졌을 때 보이는 요약 */
+.noscript-list { list-style: none; display: grid; gap: 10px; color: var(--muted); }
+.noscript-list b { color: var(--text); }
+.noscript-note { margin-top: 16px; color: var(--muted); }
