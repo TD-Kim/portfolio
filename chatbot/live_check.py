@@ -101,7 +101,7 @@ def main() -> int:
         for n in KEY_NAMES:
             print(f"  - 환경변수 {n}: {'있음(빈 값)' if n in os.environ else '없음'}")
         print("  - .streamlit/secrets.toml:", "있음" if (HERE.parent / ".streamlit" / "secrets.toml").exists() else "없음")
-        print("클라우드 환경이라면 설정의 '환경 변수'에 CHATBOT_ANTHROPIC_API_KEY=키값 으로 넣고 새 세션을 여세요.")
+        print("클라우드 환경이라면 설정의 '환경 변수'에 PORTFOLIO_CHATBOT_ANTHROPIC_API_KEY=키값 으로 넣고 새 세션을 여세요.")
         return 2
 
     client = build_agent(api_key=key).client  # 공식 API 주소로 고정된 클라이언트

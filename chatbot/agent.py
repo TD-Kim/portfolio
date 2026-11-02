@@ -403,7 +403,7 @@ class Agent:
 
 # 키를 찾는 순서. 클라우드 개발 환경처럼 ANTHROPIC_* 변수를 따로 쓰는 곳에서는
 # 전용 이름(CHATBOT_ANTHROPIC_API_KEY)을 쓰면 충돌하지 않는다.
-KEY_NAMES = ("CHATBOT_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
+KEY_NAMES = ("PORTFOLIO_CHATBOT_ANTHROPIC_API_KEY", "CHATBOT_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
 
 
 def resolve_api_key() -> str | None:

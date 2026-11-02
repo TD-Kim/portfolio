@@ -57,7 +57,7 @@ python chatbot/live_check.py              # 실제 Claude 로 시나리오 10개
 
 | 이름 | 필수 | 설명 |
 |---|---|---|
-| `CHATBOT_ANTHROPIC_API_KEY` 또는 `ANTHROPIC_API_KEY` | ✅ | Claude API 키. 앞의 전용 이름이 우선이고, Claude Code 클라우드 환경처럼 `ANTHROPIC_*` 변수를 따로 쓰는 곳에서는 전용 이름을 쓰세요 |
+| `PORTFOLIO_CHATBOT_ANTHROPIC_API_KEY`, `CHATBOT_ANTHROPIC_API_KEY`, `ANTHROPIC_API_KEY` 중 하나 | ✅ | Claude API 키. 이 순서로 찾고, Claude Code 클라우드 환경처럼 `ANTHROPIC_*` 변수를 따로 쓰는 곳에서는 전용 이름을 쓰세요 |
 | `SMTP_USER` | 메일용 | 보내는 Gmail 주소 |
 | `SMTP_PASSWORD` | 메일용 | Gmail **앱 비밀번호** (계정 비밀번호 아님. 2단계 인증 후 발급) |
 | `MAIL_TO` | 선택 | 받는 주소. 없으면 `SMTP_USER` |
