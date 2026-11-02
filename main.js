@@ -1,5 +1,6 @@
-(() => {
-  const D = window.PORTFOLIO;
+(async () => {
+  // 사이트와 챗봇이 같은 data.json 을 읽습니다.
+  const D = await fetch("data.json").then((r) => r.json());
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -13,7 +14,10 @@
   $("[data-tagline]").textContent = D.tagline;
   $("[data-year]").textContent = new Date().getFullYear();
 
-  $(".about-text").innerHTML = D.about.map((p) => `<p>${esc(p)}</p>`).join("");
+  // 페이지에는 요약만 보여 주고, 자세한 내용은 챗봇이 답합니다.
+  $(".about-text").innerHTML =
+    `<p>${esc(D.about[0])}</p>` +
+    `<p>자세한 경험과 프로젝트 이야기는 <button type="button" class="link-btn" data-ask>챗봇에게 물어보세요 →</button></p>`;
   $(".stats").innerHTML = D.stats
     .map((s) => `<div class="stat"><b data-count="${s.value}" data-suffix="${esc(s.suffix)}">0</b><span>${esc(s.label)}</span></div>`)
     .join("");
@@ -28,7 +32,7 @@
         ${p.status ? `<span class="badge">${esc(p.status)}</span>` : ""}
         ${p.link ? '<span class="card-arrow">↗</span>' : ""}
         <h3>${esc(p.title)}</h3>
-        <p>${esc(p.desc)}</p>
+        <p>${esc(p.summary || p.desc)}</p>
         <div class="tags">${p.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>`;
     return p.link
       ? `<a class="card reveal" href="${esc(p.link)}" target="_blank" rel="noopener">${inner}</a>`
@@ -58,6 +62,23 @@
   $(".contact-links").innerHTML = D.contact.links
     .map((l) => `<a class="btn btn-ghost magnetic" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`)
     .join("");
+
+  /* ---------- chatbot: 깨우는 중 안내 후 이동 ---------- */
+  const wake = $(".wake");
+  const go = $("[data-wake-go]");
+  go.href = D.chatbotUrl;
+  let wakeTimer;
+  const closeWake = () => { clearTimeout(wakeTimer); wake.hidden = true; };
+  $$("[data-ask]").forEach((b) =>
+    b.addEventListener("click", () => {
+      wake.hidden = false;
+      go.focus();
+      wakeTimer = setTimeout(() => (location.href = D.chatbotUrl), 2500); // 안내를 잠깐 보여 준 뒤 이동
+    })
+  );
+  $("[data-wake-cancel]").addEventListener("click", closeWake);
+  addEventListener("keydown", (e) => e.key === "Escape" && closeWake());
+  addEventListener("pageshow", closeWake); // 뒤로 가기로 돌아왔을 때 안내창 닫기
 
   /* ---------- typing effect ---------- */
   const typed = $(".typed");

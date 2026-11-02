@@ -33,8 +33,8 @@
       <p class="hero-role"><span class="typed"></span><span class="caret">|</span></p>
       <p class="hero-tagline" data-tagline></p>
       <div class="hero-cta">
-        <a href="#projects" class="btn btn-primary magnetic">프로젝트 보기</a>
-        <a href="#contact" class="btn btn-ghost magnetic">연락하기</a>
+        <button type="button" class="btn btn-primary magnetic" data-ask>💬 김진용에게 질문하기</button>
+        <a href="#projects" class="btn btn-ghost magnetic">프로젝트 보기</a>
       </div>
       <a href="#about" class="scroll-hint" aria-label="아래로 스크롤"><span></span></a>
     </section>
@@ -72,15 +72,30 @@
 
     <section id="contact" class="section contact">
       <h2 class="section-title reveal"><span class="num mono">05</span> Contact</h2>
-      <p class="contact-lead reveal">함께 일하고 싶거나 궁금한 점이 있다면 편하게 연락주세요.</p>
+      <p class="contact-lead reveal">함께 일하고 싶거나 궁금한 점이 있다면 편하게 연락주세요.<br />챗봇에게 물어보면 경력에 대해 더 자세히 답해 드리고, 메시지도 전해 드려요.</p>
+      <button type="button" class="btn btn-primary magnetic ask-cta reveal" data-ask>💬 김진용에게 질문하기</button>
       <a class="contact-email reveal magnetic" data-email></a>
       <div class="contact-links reveal"></div>
     </section>
   </main>
 
+  <button type="button" class="ask-fab" data-ask aria-label="김진용에게 질문하기">💬<span>질문하기</span></button>
+
+  <div class="wake" role="dialog" aria-modal="true" aria-labelledby="wake-title" hidden>
+    <div class="wake-card">
+      <div class="wake-spinner" aria-hidden="true"></div>
+      <h3 id="wake-title">챗봇을 깨우는 중이에요</h3>
+      <p>이 챗봇은 무료 서버에서 동작해서, 한동안 아무도 찾지 않으면 잠들어 있어요.<br />깨어나는 데 <b>30초~1분 정도</b> 걸릴 수 있으니 조금만 기다려 주세요 🙏</p>
+      <p class="wake-sub">잠든 화면이 보이면 <b>"Yes, get this app back up!"</b> 버튼을 눌러 주세요.</p>
+      <div class="wake-actions">
+        <a class="btn btn-primary" data-wake-go>바로 이동</a>
+        <button type="button" class="btn btn-ghost" data-wake-cancel>취소</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="footer mono">© <span data-year></span> <span data-name-en></span></footer>
 
-  <script src="data.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
