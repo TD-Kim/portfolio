@@ -440,6 +440,84 @@ class AccessTest(unittest.TestCase):
         self.assertTrue(reg.load()[inv_id]["deleted"])  # 기록은 남겨 같은 id 를 다시 쓰지 않는다
         self.assertFalse(reg.set_revoked("없는id", True))
 
+    def fake_repo(self, conflict_once=False):
+        """invites.json 하나를 들고 있는 가짜 GitHub. conflict_once 면 첫 저장 때 누가 먼저 고친 것처럼 409."""
+        import base64, json
+        repo = {"data": None, "sha": 0, "conflicted": False}
+
+        def http(method, url, body=None):
+            if method == "GET":
+                if repo["data"] is None:
+                    return 404, None
+                return 200, {"sha": str(repo["sha"]), "content": base64.b64encode(repo["data"]).decode()}
+            if conflict_once and not repo["conflicted"] and repo["data"] is not None:
+                repo["conflicted"] = True  # 그사이 관리자가 막기를 눌렀다
+                items = json.loads(repo["data"])
+                for v in items.values():
+                    v["revoked"] = True
+                repo["data"], repo["sha"] = json.dumps(items).encode(), repo["sha"] + 1
+                return 409, None
+            if repo["data"] is not None and body.get("sha") != str(repo["sha"]):
+                return 409, None
+            repo["data"], repo["sha"] = base64.b64decode(body["content"]), repo["sha"] + 1
+            return 200, {"content": {"sha": str(repo["sha"])}}
+
+        return repo, http
+
+    def wait_for(self, cond, timeout=3.0):
+        import time as _t
+        end = _t.time() + timeout
+        while _t.time() < end:
+            if cond():
+                return True
+            _t.sleep(0.02)
+        return False
+
+    def test_used_count_survives_restart(self):
+        import json
+        from agent import CodeQuota, ConversationLogger, InviteRegistry
+        repo, http = self.fake_repo()
+        reg = InviteRegistry(ConversationLogger("t", "r", http=http, background=False))
+        reg.add("a1b2", "카카오", "2026-11-30")
+        q = CodeQuota(30, store=reg)
+        for _ in range(3):
+            self.assertTrue(q.take("id:a1b2"))
+        self.assertTrue(self.wait_for(lambda: json.loads(repo["data"])["a1b2"].get("used") == 3))
+        # 서버가 다시 켜진 것처럼 새로 만든다
+        reg2 = InviteRegistry(ConversationLogger("t", "r", http=http, background=False))
+        q2 = CodeQuota(30, store=reg2)
+        self.assertEqual(q2.remaining("id:a1b2"), 27)
+        q2.refund("id:a1b2")
+        self.assertTrue(self.wait_for(lambda: json.loads(repo["data"])["a1b2"].get("used") == 2))
+
+    def test_used_save_keeps_admin_change_on_conflict(self):
+        import json
+        from agent import CodeQuota, ConversationLogger, InviteRegistry
+        repo, http = self.fake_repo(conflict_once=True)
+        reg = InviteRegistry(ConversationLogger("t", "r", http=http, background=False))
+        repo["data"] = json.dumps({"a1b2": {"label": "카카오", "expires": "2026-11-30"}}).encode()
+        q = CodeQuota(30, store=reg)
+        q.take("id:a1b2")
+        self.assertTrue(self.wait_for(lambda: json.loads(repo["data"])["a1b2"].get("used") == 1))
+        final = json.loads(repo["data"])["a1b2"]
+        self.assertTrue(final["revoked"])  # 관리자가 그사이 바꾼 내용이 덮어써지지 않았다
+        self.assertEqual(final["used"], 1)
+
+    def test_quota_works_when_store_is_down(self):
+        from agent import CodeQuota
+
+        class Down:
+            def load_used(self):
+                raise OSError("network")
+
+            def save_used(self, key, used):
+                raise OSError("network")
+
+        q = CodeQuota(2, store=Down())
+        self.assertTrue(q.take("id:x"))
+        self.assertTrue(q.take("id:x"))
+        self.assertFalse(q.take("id:x"))
+
     def test_daily_budget_resets_next_day(self):
         from agent import DailyBudget
         now = [1_800_000_000.0]

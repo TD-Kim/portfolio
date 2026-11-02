@@ -134,8 +134,9 @@ def get_access(raw: str, ttl: float, version: float, secret: str, revoked: str, 
 
 
 @st.cache_resource
-def get_quota(limit: int, version: float) -> CodeQuota:  # 초대 코드별 질문 수 (모든 방문자가 함께 씀)
-    return CodeQuota(limit)
+def get_quota(limit: int, version: float, log_args: tuple) -> CodeQuota:
+    # 초대 코드별 질문 수 (모든 방문자가 함께 씀). 기록 저장소가 있으면 invites.json 에 저장해 재시작 후에도 이어서 센다.
+    return CodeQuota(limit, store=get_registry(version, *log_args))
 
 
 @st.cache_resource
@@ -217,7 +218,7 @@ if "admin" in st.query_params:
         if not registry:
             st.caption("`LOG_GITHUB_TOKEN`, `LOG_REPO` 를 넣으면 보낸 초대가 여기에 쌓여요.")
         else:
-            usage = get_quota(QUESTIONS_PER_CODE, AGENT_VERSION)
+            usage = get_quota(QUESTIONS_PER_CODE, AGENT_VERSION, LOG_ARGS)
             items = sorted(
                 ((k, v) for k, v in registry.load().items() if not v.get("deleted")),
                 key=lambda kv: kv[1].get("created", ""),
@@ -255,7 +256,7 @@ if "admin" in st.query_params:
                             st.rerun()
         st.caption(
             "코드 오른쪽 위 복사 버튼으로 복사해요. 막으면 바로 적용되고, 이미 들어와 있던 사람도 다음 질문부터 막혀요. "
-            "질문 수는 서버가 다시 켜지면 0부터 다시 세요."
+            "질문 수는 저장소에 저장돼서 서버가 다시 켜져도 이어서 세요."
         )
 
     with tab_logs:
@@ -293,7 +294,7 @@ st.markdown(
 
 # ---- 초대 코드 확인: 링크의 ?code=... 또는 직접 입력
 access = get_access(ACCESS_CODES, CODE_TTL_HOURS, AGENT_VERSION, INVITE_SECRET, REVOKED_INVITES, LOG_ARGS)
-quota = get_quota(QUESTIONS_PER_CODE, AGENT_VERSION)
+quota = get_quota(QUESTIONS_PER_CODE, AGENT_VERSION, LOG_ARGS)
 conv_log = get_logger(AGENT_VERSION, *LOG_ARGS)
 EXPIRED_TEXT = "⌛ 이 초대 코드는 사용 기간이 끝났어요. 다시 이용하고 싶으시면 아래 이메일로 연락 주세요."
 
