@@ -423,3 +423,63 @@ def build_agent(api_key: str | None = None) -> Agent:
         max_retries=1,
     )
     return Agent(client, Profile.load(), mailer=smtp_mailer_from_env())
+
+
+# ---------------------------------------------------------------- 접근 제한
+
+
+def parse_access_codes(raw: str | None) -> dict[str, str]:
+    """ACCESS_CODES="카카오인사팀:k7f2q9,친구:m3x8" -> {코드: 이름}.
+
+    이름 없이 코드만 써도 된다("k7f2q9,m3x8"). 비어 있으면 {} = 누구나 사용 가능.
+    """
+    codes: dict[str, str] = {}
+    for part in (raw or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        label, _, code = part.rpartition(":")
+        code = code.strip()
+        if code:
+            codes[code] = label.strip() or code[:3] + "…"
+    return codes
+
+
+def check_access_code(codes: dict[str, str], given: str | None) -> str | None:
+    """맞는 코드면 그 이름, 아니면 None. 시간 차로 코드를 추측하지 못하게 비교한다."""
+    import hmac
+
+    given = (given or "").strip()
+    if not given:
+        return None
+    found = None
+    for code, label in codes.items():
+        if hmac.compare_digest(code.encode(), given.encode()):
+            found = label
+    return found
+
+
+class DailyBudget:
+    """서버 전체에서 하루에 받을 질문 수 상한. 코드가 새어 나가도 비용이 일정 이상 늘지 않게 한다.
+
+    메모리에만 있어서 서버가 다시 시작되면 0부터 센다(무료 서버는 자주 잠들었다 깬다).
+    """
+
+    def __init__(self, limit: int, clock: Callable[[], float] = time.time):
+        import threading
+
+        self.limit = limit
+        self.clock = clock
+        self._lock = threading.Lock()
+        self._day = ""
+        self.count = 0
+
+    def take(self) -> bool:
+        day = time.strftime("%Y-%m-%d", time.localtime(self.clock()))
+        with self._lock:
+            if day != self._day:
+                self._day, self.count = day, 0
+            if self.count >= self.limit:
+                return False
+            self.count += 1
+            return True

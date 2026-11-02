@@ -199,5 +199,33 @@ class LeaveMessageTest(unittest.TestCase):
         self.assertIn("kjy.devops@gmail.com", client.calls[1]["messages"][-1]["content"][0]["content"])
 
 
+class AccessTest(unittest.TestCase):
+    def test_parse_codes(self):
+        from agent import parse_access_codes
+        self.assertEqual(parse_access_codes(""), {})
+        self.assertEqual(parse_access_codes(None), {})
+        codes = parse_access_codes(" 카카오 인사팀:k7f2q9 , m3x8zz ,")
+        self.assertEqual(codes["k7f2q9"], "카카오 인사팀")
+        self.assertIn("m3x8zz", codes)
+
+    def test_check_code(self):
+        from agent import check_access_code, parse_access_codes
+        codes = parse_access_codes("친구:abc123")
+        self.assertEqual(check_access_code(codes, " abc123 "), "친구")
+        self.assertIsNone(check_access_code(codes, "abc12"))
+        self.assertIsNone(check_access_code(codes, ""))
+        self.assertIsNone(check_access_code(codes, None))
+
+    def test_daily_budget_resets_next_day(self):
+        from agent import DailyBudget
+        now = [1_800_000_000.0]
+        b = DailyBudget(2, clock=lambda: now[0])
+        self.assertTrue(b.take())
+        self.assertTrue(b.take())
+        self.assertFalse(b.take())
+        now[0] += 86400
+        self.assertTrue(b.take())
+
+
 if __name__ == "__main__":
     unittest.main()
