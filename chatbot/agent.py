@@ -628,12 +628,14 @@ class AccessControl:
         clock: Callable[[], float] = time.time,
         signer: InviteSigner | None = None,
         labels: Callable[[], dict[str, str]] | None = None,
+        blocked: Callable[[], set[str]] | None = None,
     ):
         import threading
 
         self.codes = codes
         self.signer = signer
         self.labels = labels  # 짧은 코드 id -> 이름 (초대 목록에서)
+        self.blocked = blocked  # 관리자 페이지에서 막거나 지운 id (초대 목록에서)
         self.ttl = ttl_hours * 3600
         self.clock = clock
         self.first_used: dict[str, float] = {}
@@ -651,8 +653,14 @@ class AccessControl:
             names = {}
         return names.get(invite_id) or f"초대 {invite_id}"
 
+    def _is_blocked(self, invite_id: str) -> bool:
+        try:
+            return bool(self.blocked) and invite_id in self.blocked()
+        except Exception:  # 목록을 못 읽으면 막지 않는다 (Secrets 의 REVOKED_INVITES 는 그대로 적용)
+            return False
+
     def _resolve(self, code: str | None) -> tuple[InviteCode, str] | None:
-        """(InviteCode, 질문 수를 셀 때 쓰는 키)."""
+        """(InviteCode, 질문 수를 셀 때 쓰는 키). 막은 코드는 None."""
         if not code:
             return None
         if code in self.codes:
@@ -661,10 +669,12 @@ class AccessControl:
             return None
         found = self.signer.read(code)
         if found:
-            return found[0], "id:" + found[1]
+            return (None if self._is_blocked(found[1]) else (found[0], "id:" + found[1]))
         short = self.signer.read_short(code)
         if short:
             expires, invite_id, _ = short
+            if self._is_blocked(invite_id):
+                return None
             return InviteCode(self._short_label(invite_id), expires), "id:" + invite_id
         return None
 
@@ -767,26 +777,53 @@ class DailyBudget:
 class CodeQuota:
     """초대 코드 하나로 물어볼 수 있는 질문 수 상한 (여러 탭·여러 기기를 합쳐서).
 
-    메모리에만 있어서 무료 서버가 잠들었다 깨면 다시 센다. 그래도 한 번에 쓸 수 있는 양은 막아 주고,
-    하루 전체 상한(DailyBudget)과 콘솔의 월 한도가 그 뒤를 받친다.
+    store(InviteRegistry)가 있으면 쓴 질문 수를 invites.json 에 저장하고, 서버가 다시 켜지면
+    처음에 읽어 와서 이어서 센다. 없으면 메모리에만 있어서 재시작하면 0부터 센다.
     """
 
-    def __init__(self, limit: int):
+    RETRY_LOAD = 60  # 처음 읽기에 실패하면 이 시간 뒤 다시 시도
+
+    def __init__(self, limit: int, store: Any = None, clock: Callable[[], float] = time.time):
         import threading
 
         self.limit = limit
+        self.store = store
+        self.clock = clock
         self.used: dict[str, int] = {}
+        self._loaded_at: float | None = None  # 성공적으로 읽은 시각
+        self._tried_at = -1e18
         self._lock = threading.Lock()
+
+    def _ensure_loaded(self) -> None:
+        if not self.store or self._loaded_at is not None or self.clock() - self._tried_at < self.RETRY_LOAD:
+            return
+        self._tried_at = self.clock()
+        try:
+            for key, n in self.store.load_used().items():
+                self.used[key] = max(self.used.get(key, 0), n)
+            self._loaded_at = self.clock()
+        except Exception as e:
+            print(f"[quota] 저장된 질문 수를 못 읽었어요: {e}", flush=True)
+
+    def _persist(self, key: str) -> None:
+        if self.store:
+            try:
+                self.store.save_used(key, self.used.get(key, 0))
+            except Exception as e:
+                print(f"[quota] 질문 수 저장 실패: {e}", flush=True)
 
     def remaining(self, key: str) -> int:
         with self._lock:
+            self._ensure_loaded()
             return max(self.limit - self.used.get(key, 0), 0)
 
     def take(self, key: str) -> bool:
         with self._lock:
+            self._ensure_loaded()
             if self.used.get(key, 0) >= self.limit:
                 return False
             self.used[key] = self.used.get(key, 0) + 1
+            self._persist(key)
             return True
 
     def refund(self, key: str) -> None:
@@ -794,6 +831,7 @@ class CodeQuota:
         with self._lock:
             if self.used.get(key, 0) > 0:
                 self.used[key] -= 1
+                self._persist(key)
 
 
 # ---------------------------------------------------------------- 대화 기록 (비공개 GitHub 저장소)
@@ -951,7 +989,11 @@ class InviteRegistry:
         self._cache: dict[str, dict[str, str]] | None = None
         self._at = 0.0
         self._sha: str | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # 캐시 읽기·쓰기
+        self._write = threading.Lock()  # 파일 저장은 한 번에 하나씩
+        self._pending_used: dict[str, int] = {}
+        self._worker: threading.Thread | None = None
+        self._wake = threading.Event()
 
     def _url(self) -> str:
         return f"{self.logger.API}/repos/{self.logger.repo}/contents/{self.PATH}"
@@ -976,20 +1018,96 @@ class InviteRegistry:
     def labels(self) -> dict[str, str]:
         return {k: v.get("label", "") for k, v in self.load().items()}
 
+    def blocked(self) -> set[str]:
+        """막았거나 지운 초대 id. 챗봇은 이 코드로 들어오지 못한다."""
+        return {k for k, v in self.load().items() if v.get("revoked") or v.get("deleted")}
+
+    def _now(self) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.gmtime(self.clock() + 9 * 3600))
+
     def add(self, invite_id: str, label: str, expires: str) -> bool:
+        def change(items: dict[str, dict[str, Any]]) -> bool:
+            items[invite_id] = {"label": label, "expires": expires, "created": self._now()}
+            return True
+
+        return self._mutate(change, f"invite: {label} ({invite_id})")
+
+    def set_revoked(self, invite_id: str, revoked: bool) -> bool:
+        """막기(True) / 다시 허용(False)."""
+        def change(items: dict[str, dict[str, Any]]) -> bool:
+            if invite_id not in items:
+                return False
+            items[invite_id].update(revoked=revoked, changed=self._now())
+            return True
+
+        return self._mutate(change, f"invite: {'revoke' if revoked else 'restore'} {invite_id}")
+
+    def delete(self, invite_id: str) -> bool:
+        """목록에서 숨기고 코드도 막는다. 기록은 남겨서 다시 같은 id 를 쓰지 않게 한다."""
+        def change(items: dict[str, dict[str, Any]]) -> bool:
+            if invite_id not in items:
+                return False
+            items[invite_id].update(deleted=True, revoked=True, changed=self._now())
+            return True
+
+        return self._mutate(change, f"invite: delete {invite_id}")
+
+    # ---- 쓴 질문 수 (서버가 다시 켜져도 이어서 세도록)
+    def load_used(self) -> dict[str, int]:
+        """{"id:a1b2": 쓴 질문 수}. CodeQuota 가 처음에 한 번 읽는다."""
+        return {"id:" + k: int(v.get("used", 0) or 0) for k, v in self.load(force=True).items()}
+
+    def save_used(self, key: str, used: int) -> None:
+        """질문할 때마다 부른다. 답변이 늦어지지 않게 뒤에서 저장하고, 연달아 오면 마지막 값만 쓴다."""
+        if not key.startswith("id:"):
+            return
+        import threading
+
+        with self._lock:
+            self._pending_used[key[3:]] = used
+            if self._worker is None:
+                self._worker = threading.Thread(target=self._used_worker, daemon=True)
+                self._worker.start()
+        self._wake.set()
+
+    def _used_worker(self) -> None:
+        while True:
+            self._wake.wait()
+            self._wake.clear()
+            with self._lock:
+                todo, self._pending_used = self._pending_used, {}
+            for invite_id, used in todo.items():
+                def change(items: dict[str, dict[str, Any]], i=invite_id, u=used) -> bool:
+                    if i not in items:
+                        return False
+                    items[i]["used"] = u
+                    return True
+
+                try:
+                    self._mutate(change, f"used: {invite_id} = {used}")
+                except Exception as e:
+                    print(f"[admin] 질문 수 저장 실패 {invite_id}: {e}", flush=True)
+
+    def _mutate(self, change: Callable[[dict[str, dict[str, Any]]], bool], message: str) -> bool:
+        """최신 목록을 읽어 change 를 적용하고 저장한다. 쓰기는 한 번에 하나씩만 하고,
+        그사이 파일이 바뀌어 충돌하면(409/422) 다시 읽어서 한 번 더 시도한다."""
         import base64
 
-        items = dict(self.load(force=True))
-        kst = time.strftime("%Y-%m-%d %H:%M", time.gmtime(self.clock() + 9 * 3600))
-        items[invite_id] = {"label": label, "expires": expires, "created": kst}
-        body = {"message": f"invite: {label} ({invite_id})", "branch": self.logger.branch,
-                "content": base64.b64encode(json.dumps(items, ensure_ascii=False, indent=1).encode()).decode()}
-        if self._sha:
-            body["sha"] = self._sha
-        status, data = self.logger.http("PUT", self._url(), body)
-        if status in (200, 201) and data:
-            with self._lock:
-                self._sha, self._cache, self._at = data["content"]["sha"], items, self.clock()
-            return True
-        print(f"[admin] 초대 목록 저장 실패: HTTP {status}", flush=True)
-        return False
+        with self._write:
+            for _ in range(2):
+                items = {k: dict(v) for k, v in self.load(force=True).items()}
+                if not change(items):
+                    return False
+                body = {"message": message, "branch": self.logger.branch,
+                        "content": base64.b64encode(json.dumps(items, ensure_ascii=False, indent=1).encode()).decode()}
+                if self._sha:
+                    body["sha"] = self._sha
+                status, data = self.logger.http("PUT", self._url(), body)
+                if status in (200, 201) and data:
+                    with self._lock:
+                        self._sha, self._cache, self._at = data["content"]["sha"], items, self.clock()
+                    return True
+                if status not in (409, 422):
+                    break
+            print(f"[admin] 초대 목록 저장 실패: HTTP {status}", flush=True)
+            return False
