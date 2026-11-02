@@ -69,7 +69,11 @@ SECTIONS = {
     "learning": "공부·도전 중인 것",
     "skills": "기술 스택",
     "contact": "연락처",
+    "details": "경력기술서 (프로젝트별 개발환경·담당업무 원문)",
+    "skill_table": "기술 분류표 (경력기술서)",
 }
+# 영역 이름 -> data.json 의 키
+_SECTION_KEYS = {"details": "careerDetails", "skill_table": "skillTable"}
 
 
 class Profile:
@@ -83,6 +87,10 @@ class Profile:
                 self.entries.append((kind, item))
         self.entries.append(("about", {"about": data.get("about", []), "tagline": data.get("tagline")}))
         self.entries.append(("skills", {"skills": data.get("skills", [])}))
+        for item in data.get("careerDetails", []):
+            self.entries.append(("details", item))
+        if data.get("skillTable"):
+            self.entries.append(("skill_table", data["skillTable"]))
 
     @classmethod
     def load(cls, path: Path = DATA_PATH) -> "Profile":
@@ -100,6 +108,7 @@ class Profile:
             f"경력 회사: {companies}\n"
             f"대표 프로젝트: {projects}\n"
             f"공부·도전 중: {learning}\n"
+            "경력기술서: 프로젝트별 개발환경(env)과 담당업무(duties) 원문이 있음 (영역 details)\n"
             "(위는 목록일 뿐입니다. 세부 내용은 도구로 확인하세요.)"
         )
 
@@ -126,7 +135,7 @@ class Profile:
     def section(self, name: str) -> Any:
         if name == "about":
             return {"tagline": self.data.get("tagline"), "about": self.data.get("about"), "stats": self.data.get("stats")}
-        return self.data.get(name)
+        return self.data.get(_SECTION_KEYS.get(name, name))
 
 
 # ---------------------------------------------------------------- 외부 연결
@@ -205,7 +214,8 @@ TOOLS = [
     {
         "name": "get_profile_section",
         "description": "특정 영역 전체를 가져온다. about=소개, projects=대표 프로젝트, experience=회사 경력, "
-        "credentials=학력·자격·수상, learning=공부·도전 중인 것, skills=기술 스택, contact=연락처.",
+        "credentials=학력·자격·수상, learning=공부·도전 중인 것, skills=기술 스택, contact=연락처, "
+        "details=경력기술서(프로젝트 8개의 개발환경과 담당업무 원문), skill_table=기술 분류표.",
         "input_schema": _schema({"section": {"type": "string", "enum": list(SECTIONS)}}, ["section"]),
         "strict": True,
     },
