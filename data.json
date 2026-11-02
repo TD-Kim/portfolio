@@ -1,5 +1,5 @@
 {
-  "chatbotUrl": "http://localhost:8501",
+  "chatbotUrl": "https://portfolio-c8vetzvd3jbl4tpdkdfjwx.streamlit.app",
   "name": "김진용",
   "nameEn": "Jinyong Kim",
   "roles": [
