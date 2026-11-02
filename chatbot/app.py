@@ -1,4 +1,4 @@
-"""김진용에게 질문하기 - Streamlit 챗봇 화면.
+"""진용님에 대해 물어보세요 - Streamlit 챗봇 화면.
 
 실행: streamlit run chatbot/app.py
 필요한 설정(.streamlit/secrets.toml 또는 환경변수): chatbot/README.md 참고
@@ -41,7 +41,7 @@ from agent import (  # noqa: E402
     resolve_api_key,
 )
 
-st.set_page_config(page_title="김진용에게 질문하기", page_icon="💬", layout="centered")
+st.set_page_config(page_title="진용님에 대해 물어보세요", page_icon="💬", layout="centered")
 
 PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "")
 # 초대 코드. 비어 있으면 누구나 쓸 수 있다. 예: ACCESS_CODES = "카카오 인사팀:k7f2q9:2026-11-30,친구:m3x8zz"
@@ -111,7 +111,7 @@ def get_budget() -> DailyBudget:  # 모든 방문자가 함께 쓰는 하루 한
 
 if PORTFOLIO_URL:
     st.markdown(f"[← 포트폴리오로 돌아가기]({PORTFOLIO_URL})")
-st.markdown('<p class="hero-title">💬 김진용에게 질문하기</p>', unsafe_allow_html=True)
+st.markdown('<p class="hero-title">💬 진용님에 대해 물어보세요</p>', unsafe_allow_html=True)
 st.markdown(
     '<p class="hero-sub"><b>질문에 답하고, 필요하면 연락까지 이어주는 에이전트</b><br>'
     "경력·프로젝트 자료를 직접 찾아보고 답하며, 원하시면 진용님에게 메시지도 전해 드려요.</p>",
