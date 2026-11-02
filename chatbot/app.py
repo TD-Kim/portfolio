@@ -18,6 +18,17 @@ try:
 except Exception:  # secrets.toml 이 없으면 환경변수만 사용
     pass
 
+# 서버가 켜진 채로 새 코드가 배포되면 예전 agent 모듈이 메모리에 남아 ImportError 가 날 수 있다.
+# agent.py 가 바뀌었으면 다시 불러오고, 그 버전을 아래 캐시 키에 넣어 예전 객체도 버린다.
+import importlib  # noqa: E402
+
+import agent as _agent_module  # noqa: E402
+
+AGENT_VERSION = os.path.getmtime(_agent_module.__file__)
+if getattr(_agent_module, "_loaded_version", None) != AGENT_VERSION:  # 기록이 없어도(예전 코드) 다시 불러온다
+    _agent_module = importlib.reload(_agent_module)
+_agent_module._loaded_version = AGENT_VERSION
+
 from agent import (  # noqa: E402
     KEY_NAMES,
     MAX_USER_TURNS,
@@ -84,12 +95,12 @@ div[data-testid="stButton"] button { border-radius: 999px; width: 100%; text-ali
 
 # 서버가 깨어난 뒤 처음 한 번만 준비한다. 잠들어 있다 깨어나는 동안 이 안내가 보인다.
 @st.cache_resource(show_spinner="잠들어 있던 챗봇을 깨우는 중이에요. 오래 잠들어 있었다면 30초~1분 정도 걸릴 수 있어요 🙏")
-def get_agent():
+def get_agent(version: float):  # version 이 바뀌면 새로 만든다
     return build_agent()
 
 
 @st.cache_resource
-def get_access(raw: str, ttl: float) -> AccessControl:  # 모든 방문자가 함께 쓰는 '처음 쓴 시각' 기록
+def get_access(raw: str, ttl: float, version: float) -> AccessControl:  # 모든 방문자가 함께 쓰는 '처음 쓴 시각' 기록
     return AccessControl(parse_access_codes(raw), ttl_hours=ttl)
 
 
@@ -108,7 +119,7 @@ st.markdown(
 )
 
 # ---- 초대 코드 확인: 링크의 ?code=... 또는 직접 입력
-access = get_access(ACCESS_CODES, CODE_TTL_HOURS)
+access = get_access(ACCESS_CODES, CODE_TTL_HOURS, AGENT_VERSION)
 EXPIRED_TEXT = "⌛ 이 초대 코드는 사용 기간이 끝났어요. 다시 이용하고 싶으시면 아래 이메일로 연락 주세요."
 
 
@@ -157,7 +168,7 @@ if access.enabled:
         st.stop()
 
 has_key = bool(resolve_api_key())
-agent = get_agent() if has_key else None
+agent = get_agent(AGENT_VERSION) if has_key else None
 if agent is None:
     st.warning(f"API 키({' 또는 '.join(KEY_NAMES)})가 설정되지 않아 답변을 할 수 없어요. chatbot/README.md 를 참고해 설정해 주세요.")
 
