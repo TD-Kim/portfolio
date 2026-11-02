@@ -165,8 +165,10 @@ Mailer = Callable[[str, str, str | None], None]  # (제목, 본문, 회신 주�
 
 def smtp_mailer_from_env() -> Mailer | None:
     """SMTP_USER / SMTP_PASSWORD / MAIL_TO 가 모두 있어야 메일 기능이 켜진다."""
-    user, password = os.environ.get("SMTP_USER"), os.environ.get("SMTP_PASSWORD")
-    to = os.environ.get("MAIL_TO", user or "")
+    user = (os.environ.get("SMTP_USER") or "").strip()
+    # Gmail 앱 비밀번호는 "abcd efgh ijkl mnop" 처럼 띄어 보여 주므로 공백을 지운다
+    password = (os.environ.get("SMTP_PASSWORD") or "").replace(" ", "").strip()
+    to = (os.environ.get("MAIL_TO") or user).strip()
     if not (user and password and to):
         return None
     host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
@@ -258,6 +260,7 @@ class ChatSession:
     turn: int = 0  # 방문자 메시지 차례 번호
     pending: dict[str, tuple[int, float]] = field(default_factory=dict)  # 메일 확인 대기: 키 -> (차례, 시각)
     emails_sent: int = 0
+    invite_label: str = ""  # 어떤 초대 코드로 들어온 방문자인지 (메일에 함께 적는다)
     tool_log: list[str] = field(default_factory=list)  # 디버그용: 어떤 도구를 불렀는지
     # 토큰 사용량. input 은 캐시되지 않은 부분만, cache_read/cache_write 는 캐시에서 읽고 쓴 부분
     usage: dict[str, int] = field(
@@ -331,7 +334,14 @@ class Agent:
                 + preview
             )
         reply_to = contact if EMAIL_RE.match(contact) else None
-        self.mailer(f"[포트폴리오 챗봇] {name}님의 메시지", preview, reply_to)
+        body = preview + (f"\n\n---\n초대 코드: {session.invite_label}" if session.invite_label else "")
+        body += "\n이 메일은 포트폴리오 챗봇이 방문자의 확인을 받은 뒤 보냈습니다. 답장하면 방문자에게 갑니다." if reply_to else ""
+        try:
+            self.mailer(f"[포트폴리오 챗봇] {name}님의 메시지", body, reply_to)
+        except Exception as e:  # 서버 오류 내용은 방문자에게 보이지 않게 로그에만 남긴다
+            print(f"[mail] 전송 실패: {type(e).__name__}: {e}", flush=True)
+            email = self.profile.data.get("contact", {}).get("email", "")
+            return f"메일 전송에 실패했습니다. 방문자에게 사과하고 {email} 로 직접 연락하도록 안내하세요."
         session.pending.clear()
         session.emails_sent += 1
         return "전송했습니다. 방문자에게 메시지가 전달되었다고 알려 주세요."

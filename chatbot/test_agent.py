@@ -212,6 +212,66 @@ class LeaveMessageTest(unittest.TestCase):
         agent.answer(s, "또 보내줘")
         self.assertIn("다 썼습니다", client.calls[1]["messages"][-1]["content"][0]["content"])
 
+    def test_mail_includes_invite_label(self):
+        mail = Sent()
+        agent, client, s = make(
+            resp(tool("leave_message", self.ARGS)), resp(text("?")),
+            resp(tool("leave_message", self.ARGS)), resp(text("ok")),
+            mailer=mail,
+        )
+        s.invite_label = "카카오 인사팀"
+        agent.answer(s, "1")
+        agent.answer(s, "2")
+        self.assertIn("초대 코드: 카카오 인사팀", mail.mails[0][1])
+
+    def test_mail_failure_is_polite_and_hides_details(self):
+        def broken(subject, body, reply_to):
+            raise OSError("535 5.7.8 Username and Password not accepted secret-detail")
+
+        agent, client, s = make(
+            resp(tool("leave_message", self.ARGS)), resp(text("?")),
+            resp(tool("leave_message", self.ARGS)), resp(text("죄송해요")),
+            mailer=broken,
+        )
+        agent.answer(s, "1")
+        agent.answer(s, "2")
+        result = client.calls[3]["messages"][-1]["content"][0]["content"]
+        self.assertIn("메일 전송에 실패했습니다", result)
+        self.assertNotIn("secret-detail", result)
+        self.assertEqual(s.emails_sent, 0)
+
+    def test_smtp_password_spaces_are_removed(self):
+        import os
+        from unittest import mock
+        import agent as A
+
+        sent = {}
+
+        class FakeSMTP:
+            def __init__(self, host, port, timeout):
+                sent["host"] = host
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def login(self, user, pw):
+                sent["login"] = (user, pw)
+
+            def send_message(self, msg):
+                sent["msg"] = msg
+
+        env = {"SMTP_USER": "me@gmail.com", "SMTP_PASSWORD": "abcd efgh ijkl mnop"}
+        with mock.patch.dict(os.environ, env, clear=False), mock.patch.object(A.smtplib, "SMTP_SSL", FakeSMTP):
+            os.environ.pop("MAIL_TO", None)
+            send = A.smtp_mailer_from_env()
+            send("제목", "본문", "hr@example.com")
+        self.assertEqual(sent["login"], ("me@gmail.com", "abcdefghijklmnop"))
+        self.assertEqual(sent["msg"]["To"], "me@gmail.com")
+        self.assertEqual(sent["msg"]["Reply-To"], "hr@example.com")
+
     def test_without_mailer_points_to_email(self):
         agent, client, s = make(resp(tool("leave_message", self.ARGS)), resp(text("x")))
         agent.answer(s, "메시지")
