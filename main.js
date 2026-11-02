@@ -69,8 +69,21 @@
   // (ACCESS_CODES 로 만든 코드, 잘못 입력한 값)는 기억하지 않는다. 입장 여부는 항상 챗봇이 다시 확인한다.
   const STORE = "portfolio-invite";
   const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  // 짧은 코드(K7F2-Q9MX-AB3D)는 60비트 안에 마감일이 들어 있다(2024-01-01 부터 며칠째, 16비트).
+  const B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  const normShort = (c) => {
+    const t = String(c).toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+    return t.length === 12 && [...t].every((ch) => B32.includes(ch)) ? t : null;
+  };
   const untilOf = (c) => {
     try {
+      const short = normShort(c);
+      if (short) {
+        let n = 0n;
+        for (const ch of short) n = (n << 5n) | BigInt(B32.indexOf(ch));
+        const day = Number((n >> 28n) & 0xffffn);
+        return new Date(Date.UTC(2024, 0, 1) + day * 86400e3).toISOString().slice(0, 10);
+      }
       const parts = c.split(".");
       if (parts.length !== 3 || parts[0] !== "i1") return null;
       const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -80,6 +93,15 @@
     } catch {
       return null;
     }
+  };
+  // 입력칸에 링크를 통째로 붙여 넣어도 code 값만 꺼내고, 짧은 코드는 보기 좋은 형태로 맞춘다
+  const cleanCode = (text) => {
+    let c = String(text || "").trim();
+    try {
+      if (c.includes("code=")) c = new URL(c, location.href).searchParams.get("code") || c;
+    } catch {}
+    const short = normShort(c);
+    return short ? `${short.slice(0, 4)}-${short.slice(4, 8)}-${short.slice(8)}` : c;
   };
   const saveCode = (c) => {
     const until = untilOf(c);
@@ -141,7 +163,7 @@
   );
   $(".gate form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const c = gateInput.value.trim();
+    const c = cleanCode(gateInput.value);
     if (!c) return gateInput.focus();
     code = c;
     saveCode(c); // 마감일이 든 코드만 기억된다. 맞는 코드인지는 챗봇이 확인한다

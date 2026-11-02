@@ -337,6 +337,76 @@ class AccessTest(unittest.TestCase):
         self.assertEqual(ac.key(code), "id:" + inv_id)
         self.assertEqual(ac.key("abc123"), "code:abc123")
 
+    def test_short_code_roundtrip_and_typing_forgiveness(self):
+        from agent import AccessControl, InviteSigner
+        signer = InviteSigner("s" * 32)
+        code, inv_id = signer.make_short("2026-11-30")
+        self.assertRegex(code, r"^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$")
+        ac = AccessControl({}, clock=lambda: self.NOON, signer=signer, labels=lambda: {inv_id: "카카오 인사팀"})
+        typed = " " + code.replace("-", " ").lower() + " "  # 소문자·띄어쓰기로 쳐도
+        self.assertEqual(ac.enter(typed), ("ok", code))
+        self.assertEqual(ac.label(code), "카카오 인사팀")
+        self.assertEqual(ac.key(code), "id:" + inv_id)
+        self.assertEqual(signer.read_short(code)[0], "2026-11-30")
+
+    def test_short_code_rejects_tampering_and_expires(self):
+        from agent import AccessControl, InviteSigner
+        signer = InviteSigner("s" * 32)
+        code, inv_id = signer.make_short("2026-11-02")
+        now = [self.NOON]
+        ac = AccessControl({}, clock=lambda: now[0], signer=signer)
+        flipped = code[:-1] + ("A" if code[-1] != "A" else "B")
+        self.assertEqual(ac.enter(flipped)[0], "invalid")
+        self.assertEqual(ac.enter(InviteSigner("x" * 32).make_short("2026-11-30")[0])[0], "invalid")
+        self.assertEqual(ac.label(code), "초대 " + inv_id)  # 목록이 없으면 id 로 보인다
+        now[0] += 86400
+        self.assertEqual(ac.enter(code)[0], "expired")
+        revoked = AccessControl({}, clock=lambda: self.NOON, signer=InviteSigner("s" * 32, revoked={inv_id}))
+        self.assertEqual(revoked.enter(code)[0], "invalid")
+
+    def test_pasting_a_whole_link_works(self):
+        from urllib.parse import quote
+        from agent import AccessControl, InviteSigner
+        signer = InviteSigner("s" * 32)
+        short, _ = signer.make_short("2026-11-30")
+        long_code, _ = signer.make("네이버", "2026-11-30")
+        ac = AccessControl({}, clock=lambda: self.NOON, signer=signer)
+        self.assertEqual(ac.enter(f"https://td-kim.github.io/portfolio/?code={short}")[0], "ok")
+        self.assertEqual(ac.enter(f"https://x.streamlit.app/?code={quote(long_code)}\n")[0], "ok")
+        self.assertEqual(ac.enter(quote(long_code))[0], "ok")
+
+    def test_too_many_wrong_codes_pause_entry(self):
+        from agent import AccessControl, InviteSigner
+        signer = InviteSigner("s" * 32)
+        code, _ = signer.make_short("2026-11-30")
+        now = [self.NOON]
+        ac = AccessControl({}, clock=lambda: now[0], signer=signer)
+        for _ in range(ac.MAX_FAILS):
+            ac.enter("AAAA-AAAA-AAAA")
+        self.assertEqual(ac.enter(code)[0], "busy")
+        now[0] += ac.FAIL_WINDOW + 1
+        self.assertEqual(ac.enter(code)[0], "ok")
+
+    def test_invite_registry(self):
+        import base64, json
+        from agent import ConversationLogger, InviteRegistry
+        store = {}
+
+        def http(method, url, body=None):
+            if method == "GET":
+                if "invites.json" in store:
+                    return 200, {"sha": "s1", "content": base64.b64encode(store["invites.json"]).decode()}
+                return 404, None
+            store["invites.json"] = base64.b64decode(body["content"])
+            return 201, {"content": {"sha": "s1"}}
+
+        log = ConversationLogger("t", "TD-Kim/portfolio-logs", http=http, background=False)
+        reg = InviteRegistry(log)
+        self.assertEqual(reg.labels(), {})
+        self.assertTrue(reg.add("a1b2", "카카오 인사팀", "2026-11-30"))
+        self.assertEqual(reg.labels(), {"a1b2": "카카오 인사팀"})
+        self.assertEqual(json.loads(store["invites.json"])["a1b2"]["expires"], "2026-11-30")
+
     def test_daily_budget_resets_next_day(self):
         from agent import DailyBudget
         now = [1_800_000_000.0]
