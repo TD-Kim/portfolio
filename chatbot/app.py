@@ -43,6 +43,7 @@ from agent import (  # noqa: E402
     InviteRegistry,
     logger_from_env,
     signer_from_env,
+    smtp_mailer_from_env,
 )
 
 st.set_page_config(page_title="진용님에 대해 물어보세요", page_icon="💬", layout="centered")
@@ -174,7 +175,7 @@ if "admin" in st.query_params:
                 st.error("비밀번호가 맞지 않아요.")
         st.stop()
 
-    tab_invite, tab_logs = st.tabs(["🔗 초대 링크", "🗂️ 대화 기록"])
+    tab_invite, tab_logs, tab_mail = st.tabs(["🔗 초대 링크", "🗂️ 대화 기록", "📧 메일"])
     with tab_invite:
         site = PORTFOLIO_URL or Profile.load().data.get("siteUrl", "")
         chat_url = Profile.load().data.get("chatbotUrl", "")
@@ -281,6 +282,36 @@ if "admin" in st.query_params:
                 with st.container(border=True):
                     st.markdown(conv_log.read(pick))
                 st.caption(f"GitHub 앱의 `{conv_log.repo}` 저장소에서도 같은 파일을 볼 수 있어요.")
+
+    with tab_mail:
+        mailer = smtp_mailer_from_env()  # 매번 Secrets 를 다시 읽는다
+        smtp_user = os.environ.get("SMTP_USER", "").strip()
+        mail_to = (os.environ.get("MAIL_TO") or smtp_user).strip()
+        if mailer is None:
+            st.info(
+                "Secrets 에 `SMTP_USER`(보내는 Gmail 주소)와 `SMTP_PASSWORD`(Gmail **앱 비밀번호**)를 넣으면 "
+                "방문자의 '메시지 남기기'가 메일로 와요. 받는 주소를 바꾸려면 `MAIL_TO` 도 넣어요."
+            )
+        else:
+            st.success(f"메일 설정됨 · 보내는 주소 `{smtp_user}` → 받는 주소 `{mail_to}`")
+            if st.button("테스트 메일 보내기", use_container_width=True):
+                try:
+                    with st.spinner("보내는 중…"):
+                        mailer(
+                            "[포트폴리오 챗봇] 테스트 메일",
+                            "관리자 페이지에서 보낸 테스트 메일입니다. 이 메일이 보이면 메시지 남기기가 메일로 도착해요.",
+                            None,
+                        )
+                    st.success(f"보냈어요! `{mail_to}` 받은편지함(또는 스팸함)을 확인해 주세요.")
+                    print("[mail] 테스트 메일 보냄", flush=True)
+                except Exception as e:
+                    print(f"[mail] 테스트 메일 실패: {type(e).__name__}: {e}", flush=True)
+                    st.error(f"보내지 못했어요: {type(e).__name__}: {e}")
+                    st.caption(
+                        "'Username and Password not accepted' 라면 앱 비밀번호를 다시 확인해 주세요. "
+                        "연결 오류라면 잠시 뒤 다시 시도해 주세요."
+                    )
+            st.caption("메일 설정을 바꾼 뒤 방문자 챗봇에 반영되지 않으면 Manage app → Reboot app 을 한 번 눌러 주세요.")
     st.stop()
 
 if PORTFOLIO_URL:
@@ -357,6 +388,8 @@ if "chat" not in st.session_state:
     st.session_state.chat = ChatSession()
     st.session_state.history = []  # 화면에 보여 줄 (역할, 글) 목록
 chat: ChatSession = st.session_state.chat
+if access.enabled and st.session_state.get("access_code"):
+    chat.invite_label = access.label(st.session_state.access_code)  # 메시지 메일에 함께 적는다
 history: list[tuple[str, str]] = st.session_state.history
 
 with st.chat_message("assistant", avatar="🧑‍💻"):

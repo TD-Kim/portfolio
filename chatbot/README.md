@@ -122,6 +122,23 @@ python chatbot/live_check.py              # 실제 Claude 로 시나리오 10개
 
 메일 설정이 없으면 챗봇은 메시지 대신 이메일 주소로 직접 연락하도록 안내합니다.
 
+## 메시지 메일로 받기 (Gmail)
+
+1. Google 계정에 **2단계 인증**을 켭니다.
+2. 휴대폰 브라우저로 **https://myaccount.google.com/apppasswords** 에 들어가 앱 이름(예: portfolio-chatbot)을 넣고 만들면
+   16자리 **앱 비밀번호**가 나옵니다. 띄어쓰기가 있어도 그대로 넣으면 됩니다(코드가 지움).
+3. Streamlit Secrets 에 넣습니다.
+   ```toml
+   SMTP_USER = "보내는 Gmail 주소"
+   SMTP_PASSWORD = "앱 비밀번호 16자리"
+   MAIL_TO = "받을 주소"   # 생략하면 SMTP_USER 로 받음
+   ```
+4. 관리자 페이지의 **📧 메일** 탭에서 **테스트 메일 보내기**로 확인합니다.
+
+받는 메일에는 보낸 사람·회신 연락처·내용과 **어떤 초대 코드로 들어온 사람인지**가 들어가고, 방문자가 이메일을 남겼으면
+답장 주소(Reply-To)가 그 사람으로 잡혀서 바로 답장할 수 있습니다. 전송에 실패하면 방문자에게는 서버 오류 대신
+"직접 이메일로 연락해 달라"는 안내가 나가고, 자세한 오류는 로그(`[mail] 전송 실패`)에만 남습니다.
+
 ## 배포 (Streamlit Community Cloud, 무료)
 
 1. share.streamlit.io 에서 이 저장소를 연결하고 Main file path 를 `chatbot/app.py` 로 지정합니다.
