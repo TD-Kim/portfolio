@@ -63,26 +63,89 @@
     .map((l) => `<a class="btn btn-ghost magnetic" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`)
     .join("");
 
-  /* ---------- chatbot: 깨우는 중 안내 후 이동 ---------- */
-  const wake = $(".wake");
+  /* ---------- chatbot: 초대 코드 확인 → 깨우는 중 안내 → 이동 ---------- */
+  // 초대 코드는 링크(?code=...)로 받거나 직접 입력한다. 한 번 받은 코드는 이 브라우저에 기억해서
+  // 나중에 그냥 사이트 주소로 와도 바로 쓸 수 있게 한다. 마감일이 지나면 저절로 잊는다.
+  const STORE = "portfolio-invite";
+  const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const untilOf = (c) => {
+    // 서명 코드(i1.내용.서명)는 내용에 마감일이 들어 있다. 그 밖의 코드는 30일 동안 기억한다.
+    try {
+      if (c.startsWith("i1.")) {
+        const b64 = c.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        const json = new TextDecoder().decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
+        const e = JSON.parse(json).e;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(e)) return e;
+      }
+    } catch {}
+    return new Date(Date.now() + 30 * 86400e3 + 9 * 3600e3).toISOString().slice(0, 10);
+  };
+  const saveCode = (c) => {
+    try { localStorage.setItem(STORE, JSON.stringify({ code: c, until: untilOf(c) })); } catch {}
+  };
+  const loadCode = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem(STORE) || "null");
+      if (v && v.code && v.until >= kstToday()) return v.code;
+      localStorage.removeItem(STORE);
+    } catch {}
+    return null;
+  };
+
+  const params = new URLSearchParams(location.search);
+  let code = params.get("code");
+  if (code) {
+    saveCode(code);
+    // 주소창에서 코드를 지워서, 이 화면 주소를 복사해 남에게 보내도 코드가 같이 가지 않게 한다
+    params.delete("code");
+    const rest = params.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+  } else {
+    code = loadCode();
+  }
+
+  const wake = $(".wake:not(.gate)");
   const go = $("[data-wake-go]");
-  // 포트폴리오 링크에 붙은 초대 코드(?code=...)를 챗봇 주소로 넘겨준다
-  const code = new URLSearchParams(location.search).get("code");
-  const chatUrl = new URL(D.chatbotUrl);
-  if (code) chatUrl.searchParams.set("code", code);
-  go.href = chatUrl.href;
+  const gate = $(".gate");
+  const gateInput = $("[data-gate-input]");
+  const chatUrlFor = (c) => {
+    const u = new URL(D.chatbotUrl);
+    if (c) u.searchParams.set("code", c);
+    return u.href;
+  };
+  $("[data-gate-request]").href =
+    `mailto:${D.contact.email}?subject=${encodeURIComponent("포트폴리오 챗봇 초대 코드 요청")}` +
+    `&body=${encodeURIComponent("안녕하세요, 포트폴리오를 보고 연락드립니다.\n\n회사/이름: \n")}`;
+
   let wakeTimer;
-  const closeWake = () => { clearTimeout(wakeTimer); wake.hidden = true; };
+  const closeAll = () => { clearTimeout(wakeTimer); wake.hidden = true; gate.hidden = true; };
+  const openChat = () => {
+    gate.hidden = true;
+    go.href = chatUrlFor(code);
+    wake.hidden = false;
+    go.focus();
+    wakeTimer = setTimeout(() => (location.href = go.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
+  };
   $$("[data-ask]").forEach((b) =>
     b.addEventListener("click", () => {
-      wake.hidden = false;
-      go.focus();
-      wakeTimer = setTimeout(() => (location.href = chatUrl.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
+      if (code) return openChat();
+      // 코드가 없으면 서버를 깨우며 기다리게 하지 않고 여기서 바로 안내한다
+      gate.hidden = false;
+      gateInput.value = "";
+      gateInput.focus();
     })
   );
-  $("[data-wake-cancel]").addEventListener("click", closeWake);
-  addEventListener("keydown", (e) => e.key === "Escape" && closeWake());
-  addEventListener("pageshow", closeWake); // 뒤로 가기로 돌아왔을 때 안내창 닫기
+  $(".gate form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const c = gateInput.value.trim();
+    if (!c) return gateInput.focus();
+    code = c;
+    saveCode(c); // 맞는 코드인지는 챗봇이 확인한다
+    openChat();
+  });
+  $$("[data-wake-cancel], [data-gate-close]").forEach((b) => b.addEventListener("click", closeAll));
+  addEventListener("keydown", (e) => e.key === "Escape" && closeAll());
+  addEventListener("pageshow", closeAll); // 뒤로 가기로 돌아왔을 때 안내창 닫기
 
   /* ---------- typing effect ---------- */
   const typed = $(".typed");

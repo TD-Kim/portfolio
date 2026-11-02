@@ -267,3 +267,17 @@ button.btn-ghost { border: 1px solid var(--border); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) { .ask-fab span { display: none; } .ask-fab { padding: 16px; } }
+
+/* 초대 코드 안내창 */
+.gate-icon { font-size: 2.4rem; line-height: 1; }
+.gate-form { display: flex; gap: 8px; margin-top: 20px; }
+.gate-form input {
+  flex: 1; min-width: 0; padding: 12px 16px; border-radius: 999px; font: inherit; color: var(--text);
+  background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); outline: none;
+}
+.gate-form input:focus { border-color: var(--a2); }
+.gate-form .btn { padding: 12px 20px; white-space: nowrap; }
+.gate-link { color: var(--a2); text-decoration: underline; }
+.gate .wake-actions { margin-top: 16px; }
+.wake-card { min-width: 0; }
+.gate-form input { width: 100%; }
