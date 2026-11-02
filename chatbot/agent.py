@@ -16,6 +16,7 @@ import os
 import re
 import smtplib
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from email.message import EmailMessage
@@ -258,7 +259,10 @@ class ChatSession:
     pending: dict[str, tuple[int, float]] = field(default_factory=dict)  # 메일 확인 대기: 키 -> (차례, 시각)
     emails_sent: int = 0
     tool_log: list[str] = field(default_factory=list)  # 디버그용: 어떤 도구를 불렀는지
-    usage: dict[str, int] = field(default_factory=lambda: {"input": 0, "output": 0, "calls": 0})  # 토큰 사용량
+    # 토큰 사용량. input 은 캐시되지 않은 부분만, cache_read/cache_write 는 캐시에서 읽고 쓴 부분
+    usage: dict[str, int] = field(
+        default_factory=lambda: {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "calls": 0}
+    )
 
 
 # ---------------------------------------------------------------- 에이전트
@@ -337,7 +341,10 @@ class Agent:
         return self.client.messages.create(
             model=self.model,
             max_tokens=MAX_TOKENS,
-            system=self.system,
+            # 프롬프트 캐싱: 도구 정의+시스템 프롬프트(매번 같음)에 고정 캐시 지점을 두고,
+            # 대화가 길어지는 뒷부분은 자동 캐싱이 따라가게 한다. 5분 안에 다시 쓰면 입력 비용이 약 1/10.
+            system=[{"type": "text", "text": self.system, "cache_control": {"type": "ephemeral"}}],
+            cache_control={"type": "ephemeral"},
             messages=messages,
             tools=TOOLS,
             # 마지막 회차는 도구 없이 답만 하게 한다
@@ -364,6 +371,8 @@ class Agent:
                 if u is not None:
                     session.usage["input"] += getattr(u, "input_tokens", 0) or 0
                     session.usage["output"] += getattr(u, "output_tokens", 0) or 0
+                    session.usage["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+                    session.usage["cache_write"] += getattr(u, "cache_creation_input_tokens", 0) or 0
                 session.usage["calls"] += 1
                 if resp.stop_reason == "refusal":
                     del session.messages[checkpoint:]
@@ -525,6 +534,71 @@ class InviteSigner:
             return None
         return inv, invite_id
 
+    # ---- 짧은 코드: 손으로 칠 수 있는 12자 (예: K7F2-Q9MX-AB3D)
+    # 60비트 = id 16비트 | 마감일 16비트(2024-01-01 부터 며칠째) | 서명 28비트.
+    # 이름은 들어가지 않으므로 초대 목록(InviteRegistry)에서 찾는다.
+    B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # 헷갈리는 I, L, O, U 는 빼고 씀
+    EPOCH = 19723  # 2024-01-01 의 1970-01-01 부터 일수
+
+    @classmethod
+    def normalize_short(cls, text: str) -> str | None:
+        c = re.sub(r"[\s-]", "", (text or "").upper()).translate(str.maketrans("OIL", "011"))
+        return c if len(c) == 12 and all(ch in cls.B32 for ch in c) else None
+
+    def _short_mac(self, invite_id: int, day: int) -> int:
+        import hashlib
+        import hmac
+
+        msg = b"s1" + invite_id.to_bytes(2, "big") + day.to_bytes(2, "big")
+        return int.from_bytes(hmac.new(self.secret, msg, hashlib.sha256).digest()[:4], "big") >> 4
+
+    def make_short(self, expires_on: str, invite_id: str | None = None) -> tuple[str, str]:
+        """(짧은 코드, id) 를 돌려준다."""
+        import datetime as dt
+        import secrets as pysecrets
+
+        if not DATE_RE.match(expires_on or ""):
+            raise ValueError("마감일은 YYYY-MM-DD 형식이어야 합니다.")
+        day = dt.date.fromisoformat(expires_on).toordinal() - dt.date(1970, 1, 1).toordinal() - self.EPOCH
+        if not 0 <= day < 65536:
+            raise ValueError("마감일이 범위를 벗어났습니다.")
+        num = int(invite_id, 16) if invite_id else pysecrets.randbits(16)
+        n = (num << 44) | (day << 28) | self._short_mac(num, day)
+        chars = "".join(self.B32[(n >> (5 * (11 - i))) & 31] for i in range(12))
+        return f"{chars[:4]}-{chars[4:8]}-{chars[8:]}", f"{num:04x}"
+
+    def read_short(self, text: str) -> tuple[str, str, str] | None:
+        """맞으면 (마감일, id, 정리된 코드), 아니면 None. 막은 코드도 None."""
+        import datetime as dt
+        import hmac
+
+        c = self.normalize_short(text)
+        if not c:
+            return None
+        n = 0
+        for ch in c:
+            n = (n << 5) | self.B32.index(ch)
+        num, day, mac = n >> 44, (n >> 28) & 0xFFFF, n & ((1 << 28) - 1)
+        if not hmac.compare_digest(mac.to_bytes(4, "big"), self._short_mac(num, day).to_bytes(4, "big")):
+            return None
+        invite_id = f"{num:04x}"
+        if invite_id in self.revoked:
+            return None
+        expires = dt.date.fromordinal(dt.date(1970, 1, 1).toordinal() + self.EPOCH + day).isoformat()
+        return expires, invite_id, f"{c[:4]}-{c[4:8]}-{c[8:]}"
+
+
+def extract_code(text: str | None) -> str:
+    """입력칸에 링크 전체를 붙여 넣어도 그 안의 code 값을 꺼낸다."""
+    from urllib.parse import parse_qs, unquote, urlparse
+
+    text = (text or "").strip()
+    if "code=" in text:
+        q = parse_qs(urlparse(text).query) or parse_qs(text.split("?", 1)[-1])
+        if q.get("code"):
+            return q["code"][0].strip()
+    return unquote(text) if text.startswith("i1.") else text
+
 
 def signer_from_env() -> InviteSigner | None:
     secret = os.environ.get("INVITE_SECRET", "").strip()
@@ -537,10 +611,15 @@ def signer_from_env() -> InviteSigner | None:
 class AccessControl:
     """초대 코드 확인과 만료.
 
-    - 날짜 만료: Secrets 에 적은 날짜가 지나면 만료. 서버가 다시 시작돼도 그대로 지켜진다.
+    받는 코드: ACCESS_CODES 목록 코드, 서명 코드(i1.…, 긴 링크용), 짧은 코드(K7F2-Q9MX-AB3D).
+    - 날짜 만료: 코드에 든(또는 Secrets 에 적은) 날짜가 지나면 만료. 서버가 다시 시작돼도 그대로 지켜진다.
     - 첫 사용 후 만료: 코드가 처음 쓰인 뒤 ttl_hours 가 지나면 만료. 처음 쓴 시각은 메모리에만 있어서
       무료 서버가 잠들었다 깨면 다시 센다. 확실한 기한이 필요하면 날짜 만료를 함께 쓴다.
+    - 틀린 코드가 서버 전체에서 10분에 MAX_FAILS 번을 넘으면 잠시 막는다(짧은 코드 무작위 대입 방지).
     """
+
+    MAX_FAILS = 50
+    FAIL_WINDOW = 600
 
     def __init__(
         self,
@@ -548,42 +627,68 @@ class AccessControl:
         ttl_hours: float = 0,
         clock: Callable[[], float] = time.time,
         signer: InviteSigner | None = None,
+        labels: Callable[[], dict[str, str]] | None = None,
     ):
         import threading
 
         self.codes = codes
         self.signer = signer
+        self.labels = labels  # 짧은 코드 id -> 이름 (초대 목록에서)
         self.ttl = ttl_hours * 3600
         self.clock = clock
         self.first_used: dict[str, float] = {}
+        self.fails: list[float] = []
         self._lock = threading.Lock()
 
     @property
     def enabled(self) -> bool:
         return bool(self.codes) or self.signer is not None
 
-    def _lookup(self, code: str | None) -> InviteCode | None:
+    def _short_label(self, invite_id: str) -> str:
+        try:
+            names = self.labels() if self.labels else {}
+        except Exception:
+            names = {}
+        return names.get(invite_id) or f"초대 {invite_id}"
+
+    def _resolve(self, code: str | None) -> tuple[InviteCode, str] | None:
+        """(InviteCode, 질문 수를 셀 때 쓰는 키)."""
         if not code:
             return None
         if code in self.codes:
-            return self.codes[code]
-        if self.signer:
-            found = self.signer.read(code)
-            return found[0] if found else None
+            return self.codes[code], "code:" + code
+        if not self.signer:
+            return None
+        found = self.signer.read(code)
+        if found:
+            return found[0], "id:" + found[1]
+        short = self.signer.read_short(code)
+        if short:
+            expires, invite_id, _ = short
+            return InviteCode(self._short_label(invite_id), expires), "id:" + invite_id
         return None
+
+    def _lookup(self, code: str | None) -> InviteCode | None:
+        found = self._resolve(code)
+        return found[0] if found else None
 
     def _match(self, given: str | None) -> str | None:
         import hmac
 
-        given = (given or "").strip()
+        given = extract_code(given)
         if not given:
             return None
         found = None
         for code in self.codes:  # 시간 차로 코드를 추측하지 못하게 전부 같은 방식으로 비교한다
             if hmac.compare_digest(code.encode(), given.encode()):
                 found = code
-        if found is None and self.signer and self.signer.read(given):
-            found = given
+        if found is None and self.signer:
+            if self.signer.read(given):
+                found = given
+            else:
+                short = self.signer.read_short(given)
+                if short:
+                    found = short[2]  # 소문자·띄어쓰기를 정리한 형태로 쓴다
         return found
 
     def _expired(self, code: str, now: float) -> bool:
@@ -599,11 +704,17 @@ class AccessControl:
         return False
 
     def enter(self, given: str | None) -> tuple[str, str | None]:
-        """입장 시도. ("ok", 코드) / ("expired", None) / ("invalid", None)."""
+        """입장 시도. ("ok", 코드) / ("expired", None) / ("invalid", None) / ("busy", None)."""
+        now = self.clock()
+        with self._lock:
+            self.fails = [t for t in self.fails if now - t < self.FAIL_WINDOW]
+            if len(self.fails) >= self.MAX_FAILS:
+                return "busy", None
         code = self._match(given)
         if code is None:
+            with self._lock:
+                self.fails.append(now)
             return "invalid", None
-        now = self.clock()
         with self._lock:
             if self._expired(code, now):
                 return "expired", None
@@ -620,6 +731,11 @@ class AccessControl:
     def label(self, code: str) -> str:
         inv = self._lookup(code)
         return inv.label if inv else "?"
+
+    def key(self, code: str) -> str:
+        """질문 수를 셀 때 쓰는 이름. 서명·짧은 코드는 id, 목록 코드는 코드 자체."""
+        found = self._resolve(code)
+        return found[1] if found else "code:" + code
 
 
 class DailyBudget:
@@ -646,3 +762,234 @@ class DailyBudget:
                 return False
             self.count += 1
             return True
+
+
+class CodeQuota:
+    """초대 코드 하나로 물어볼 수 있는 질문 수 상한 (여러 탭·여러 기기를 합쳐서).
+
+    메모리에만 있어서 무료 서버가 잠들었다 깨면 다시 센다. 그래도 한 번에 쓸 수 있는 양은 막아 주고,
+    하루 전체 상한(DailyBudget)과 콘솔의 월 한도가 그 뒤를 받친다.
+    """
+
+    def __init__(self, limit: int):
+        import threading
+
+        self.limit = limit
+        self.used: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def remaining(self, key: str) -> int:
+        with self._lock:
+            return max(self.limit - self.used.get(key, 0), 0)
+
+    def take(self, key: str) -> bool:
+        with self._lock:
+            if self.used.get(key, 0) >= self.limit:
+                return False
+            self.used[key] = self.used.get(key, 0) + 1
+            return True
+
+    def refund(self, key: str) -> None:
+        """답변에 실패한 질문은 세지 않는다."""
+        with self._lock:
+            if self.used.get(key, 0) > 0:
+                self.used[key] -= 1
+
+
+# ---------------------------------------------------------------- 대화 기록 (비공개 GitHub 저장소)
+
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE_RE = re.compile(
+    r"(?<!\d)(?:\+?82[-.\s]?)?0?(?:1[016789]|2|[3-6]\d)[-.\s)]?\d{3,4}[-.\s]?\d{4}(?!\d)"
+)
+
+
+def mask_contacts(text: str) -> str:
+    """기록에 남기기 전에 이메일 주소와 전화번호를 가린다."""
+    text = _EMAIL_RE.sub("[이메일 가림]", text or "")
+    return _PHONE_RE.sub("[전화번호 가림]", text)
+
+
+class ConversationLogger:
+    """대화를 비공개 GitHub 저장소에 .md 파일로 남긴다. 대화(세션) 하나 = 파일 하나.
+
+    - 서버가 다시 켜져도 남도록 서버 바깥(GitHub)에 저장한다.
+    - 저장은 별도 스레드에서 해서 답변 속도에 영향이 없고, 실패해도 대화는 계속된다.
+    - 이메일·전화번호는 가려서 저장한다.
+    """
+
+    API = "https://api.github.com"
+
+    def __init__(self, token: str, repo: str, branch: str = "main", http: Callable[..., Any] | None = None,
+                 clock: Callable[[], float] = time.time, background: bool = True):
+        import queue
+        import threading
+
+        self.token, self.repo, self.branch = token, repo, branch
+        self.http = http or self._http
+        self.clock = clock
+        self._sha: dict[str, str] = {}  # 파일별 최신 sha (수정할 때 필요)
+        self._queue: "queue.Queue[tuple[str, str]]" = queue.Queue()
+        self.background = background
+        if background:
+            threading.Thread(target=self._worker, daemon=True).start()
+
+    # ---- HTTP
+    def _http(self, method: str, url: str, body: dict | None = None) -> tuple[int, Any]:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method, headers={
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "portfolio-chatbot",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, json.loads(r.read().decode() or "null")
+        except urllib.error.HTTPError as e:
+            return e.code, None
+
+    # ---- 쓰기
+    def new_conversation(self, label: str, invite_key: str | None) -> dict[str, Any]:
+        import secrets as pysecrets
+
+        kst = time.gmtime(self.clock() + 9 * 3600)
+        safe = re.sub(r"[^\w가-힣-]+", "-", label or "익명").strip("-")[:30] or "익명"
+        path = f"{time.strftime('%Y-%m', kst)}/{time.strftime('%m%d-%H%M', kst)}_{safe}_{pysecrets.token_hex(2)}.md"
+        return {"path": path, "label": label or "익명", "invite": invite_key or "-",
+                "started": time.strftime("%Y-%m-%d %H:%M", kst), "turns": []}
+
+    def add_turn(self, conv: dict[str, Any], question: str, answer: str, tools: list[str]) -> None:
+        kst = time.gmtime(self.clock() + 9 * 3600)
+        conv["turns"].append({"at": time.strftime("%H:%M", kst), "q": mask_contacts(question),
+                              "a": mask_contacts(answer), "tools": list(tools)})
+        doc = self.render(conv)
+        if self.background:
+            self._queue.put((conv["path"], doc))
+        else:
+            self._save(conv["path"], doc)
+
+    @staticmethod
+    def render(conv: dict[str, Any]) -> str:
+        lines = [f"### {conv['label']} · {conv['started']}", "",
+                 f"- 초대 코드: `{conv['invite']}`", f"- 질문 수: {len(conv['turns'])}",
+                 "- 이메일·전화번호는 가려서 저장했습니다.", ""]
+        for i, t in enumerate(conv["turns"], 1):
+            tools = f" · 도구: {', '.join(t['tools'])}" if t["tools"] else ""
+            lines += [f"#### {i}. {t['at']}{tools}", "", "**방문자**", "", t["q"], "", "**챗봇**", "", t["a"], ""]
+        return "\n".join(lines)
+
+    def _worker(self) -> None:
+        while True:
+            path, doc = self._queue.get()
+            try:
+                self._save(path, doc)
+            except Exception as e:  # 기록 실패로 챗봇이 멈추면 안 된다
+                print(f"[log] 저장 실패 {path}: {e}", flush=True)
+
+    def _save(self, path: str, doc: str) -> None:
+        import base64
+        from urllib.parse import quote
+
+        url = f"{self.API}/repos/{self.repo}/contents/{quote(path)}"
+        body = {"message": f"log: {path}", "content": base64.b64encode(doc.encode()).decode(), "branch": self.branch}
+        if path in self._sha:
+            body["sha"] = self._sha[path]
+        status, data = self.http("PUT", url, body)
+        if status == 409 or status == 422:  # sha 가 어긋났으면 최신 sha 를 받아 한 번 더
+            st_, cur = self.http("GET", f"{url}?ref={self.branch}")
+            if st_ == 200 and cur:
+                body["sha"] = cur["sha"]
+                status, data = self.http("PUT", url, body)
+        if status in (200, 201) and data:
+            self._sha[path] = data["content"]["sha"]
+        else:
+            print(f"[log] 저장 실패 {path}: HTTP {status}", flush=True)
+
+    # ---- 읽기 (관리자 페이지)
+    def recent(self, months: int = 2, limit: int = 50) -> list[str]:
+        """최근 대화 파일 경로 목록 (최신순)."""
+        now = time.gmtime(self.clock() + 9 * 3600)
+        y, m = now.tm_year, now.tm_mon
+        paths: list[str] = []
+        for _ in range(months):
+            status, data = self.http("GET", f"{self.API}/repos/{self.repo}/contents/{y:04d}-{m:02d}?ref={self.branch}")
+            if status == 200 and isinstance(data, list):
+                paths += [f["path"] for f in data if f.get("type") == "file" and f["name"].endswith(".md")]
+            y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+        return sorted(paths, key=lambda p: p.split("/")[-1], reverse=True)[:limit]
+
+    def read(self, path: str) -> str:
+        import base64
+        from urllib.parse import quote
+
+        status, data = self.http("GET", f"{self.API}/repos/{self.repo}/contents/{quote(path)}?ref={self.branch}")
+        if status != 200 or not data:
+            return f"(불러오지 못했어요: HTTP {status})"
+        return base64.b64decode(data["content"]).decode()
+
+
+def logger_from_env() -> ConversationLogger | None:
+    token, repo = os.environ.get("LOG_GITHUB_TOKEN", "").strip(), os.environ.get("LOG_REPO", "").strip()
+    if not (token and repo):
+        return None
+    return ConversationLogger(token, repo, os.environ.get("LOG_BRANCH", "main").strip() or "main")
+
+
+class InviteRegistry:
+    """보낸 초대 목록: {id: {label, expires, created}} 를 기록 저장소의 invites.json 에 둔다.
+
+    짧은 코드에는 이름이 들어가지 않으므로, 챗봇은 여기서 id 로 이름을 찾는다(5분 캐시).
+    목록을 못 읽어도 입장은 된다(이름만 '초대 a1b2' 로 보임).
+    """
+
+    PATH = "invites.json"
+
+    def __init__(self, logger: ConversationLogger, ttl: float = 300, clock: Callable[[], float] = time.time):
+        import threading
+
+        self.logger, self.ttl, self.clock = logger, ttl, clock
+        self._cache: dict[str, dict[str, str]] | None = None
+        self._at = 0.0
+        self._sha: str | None = None
+        self._lock = threading.Lock()
+
+    def _url(self) -> str:
+        return f"{self.logger.API}/repos/{self.logger.repo}/contents/{self.PATH}"
+
+    def load(self, force: bool = False) -> dict[str, dict[str, str]]:
+        import base64
+
+        with self._lock:
+            if not force and self._cache is not None and self.clock() - self._at < self.ttl:
+                return self._cache
+            status, data = self.logger.http("GET", f"{self._url()}?ref={self.logger.branch}")
+            if status == 200 and data:
+                self._sha = data["sha"]
+                self._cache = json.loads(base64.b64decode(data["content"]).decode() or "{}")
+            elif status == 404:
+                self._sha, self._cache = None, {}
+            elif self._cache is None:
+                self._cache = {}
+            self._at = self.clock()
+            return self._cache
+
+    def labels(self) -> dict[str, str]:
+        return {k: v.get("label", "") for k, v in self.load().items()}
+
+    def add(self, invite_id: str, label: str, expires: str) -> bool:
+        import base64
+
+        items = dict(self.load(force=True))
+        kst = time.strftime("%Y-%m-%d %H:%M", time.gmtime(self.clock() + 9 * 3600))
+        items[invite_id] = {"label": label, "expires": expires, "created": kst}
+        body = {"message": f"invite: {label} ({invite_id})", "branch": self.logger.branch,
+                "content": base64.b64encode(json.dumps(items, ensure_ascii=False, indent=1).encode()).decode()}
+        if self._sha:
+            body["sha"] = self._sha
+        status, data = self.logger.http("PUT", self._url(), body)
+        if status in (200, 201) and data:
+            with self._lock:
+                self._sha, self._cache, self._at = data["content"]["sha"], items, self.clock()
+            return True
+        print(f"[admin] 초대 목록 저장 실패: HTTP {status}", flush=True)
+        return False

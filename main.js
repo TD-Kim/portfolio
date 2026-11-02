@@ -63,26 +63,115 @@
     .map((l) => `<a class="btn btn-ghost magnetic" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`)
     .join("");
 
-  /* ---------- chatbot: 깨우는 중 안내 후 이동 ---------- */
-  const wake = $(".wake");
+  /* ---------- chatbot: 초대 코드 확인 → 깨우는 중 안내 → 이동 ---------- */
+  // 초대 코드는 링크(?code=...)로 받거나 직접 입력한다. 관리자 페이지에서 만든 코드(i1.내용.서명)는
+  // 내용에 마감일이 들어 있어서, 그날까지만 이 브라우저에 기억한다. 날짜를 알 수 없는 코드
+  // (ACCESS_CODES 로 만든 코드, 잘못 입력한 값)는 기억하지 않는다. 입장 여부는 항상 챗봇이 다시 확인한다.
+  const STORE = "portfolio-invite";
+  const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  // 짧은 코드(K7F2-Q9MX-AB3D)는 60비트 안에 마감일이 들어 있다(2024-01-01 부터 며칠째, 16비트).
+  const B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  const normShort = (c) => {
+    const t = String(c).toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+    return t.length === 12 && [...t].every((ch) => B32.includes(ch)) ? t : null;
+  };
+  const untilOf = (c) => {
+    try {
+      const short = normShort(c);
+      if (short) {
+        let n = 0n;
+        for (const ch of short) n = (n << 5n) | BigInt(B32.indexOf(ch));
+        const day = Number((n >> 28n) & 0xffffn);
+        return new Date(Date.UTC(2024, 0, 1) + day * 86400e3).toISOString().slice(0, 10);
+      }
+      const parts = c.split(".");
+      if (parts.length !== 3 || parts[0] !== "i1") return null;
+      const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const json = new TextDecoder().decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
+      const e = JSON.parse(json).e;
+      return /^\d{4}-\d{2}-\d{2}$/.test(e) ? e : null;
+    } catch {
+      return null;
+    }
+  };
+  // 입력칸에 링크를 통째로 붙여 넣어도 code 값만 꺼내고, 짧은 코드는 보기 좋은 형태로 맞춘다
+  const cleanCode = (text) => {
+    let c = String(text || "").trim();
+    try {
+      if (c.includes("code=")) c = new URL(c, location.href).searchParams.get("code") || c;
+    } catch {}
+    const short = normShort(c);
+    return short ? `${short.slice(0, 4)}-${short.slice(4, 8)}-${short.slice(8)}` : c;
+  };
+  const saveCode = (c) => {
+    const until = untilOf(c);
+    try {
+      if (until && until >= kstToday()) localStorage.setItem(STORE, JSON.stringify({ code: c, until }));
+    } catch {}
+  };
+  const loadCode = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem(STORE) || "null");
+      if (v && v.code && v.until >= kstToday()) return v.code;
+      localStorage.removeItem(STORE);
+    } catch {}
+    return null;
+  };
+
+  const params = new URLSearchParams(location.search);
+  let code = params.get("code");
+  if (code) {
+    saveCode(code);
+    // 주소창에서 코드를 지워서, 이 화면 주소를 복사해 남에게 보내도 코드가 같이 가지 않게 한다
+    params.delete("code");
+    const rest = params.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+  } else {
+    code = loadCode();
+  }
+
+  const wake = $(".wake:not(.gate)");
   const go = $("[data-wake-go]");
-  // 포트폴리오 링크에 붙은 초대 코드(?code=...)를 챗봇 주소로 넘겨준다
-  const code = new URLSearchParams(location.search).get("code");
-  const chatUrl = new URL(D.chatbotUrl);
-  if (code) chatUrl.searchParams.set("code", code);
-  go.href = chatUrl.href;
+  const gate = $(".gate");
+  const gateInput = $("[data-gate-input]");
+  const chatUrlFor = (c) => {
+    const u = new URL(D.chatbotUrl);
+    if (c) u.searchParams.set("code", c);
+    return u.href;
+  };
+  $("[data-gate-request]").href =
+    `mailto:${D.contact.email}?subject=${encodeURIComponent("포트폴리오 챗봇 초대 코드 요청")}` +
+    `&body=${encodeURIComponent("안녕하세요, 포트폴리오를 보고 연락드립니다.\n\n회사/이름: \n")}`;
+
   let wakeTimer;
-  const closeWake = () => { clearTimeout(wakeTimer); wake.hidden = true; };
+  const closeAll = () => { clearTimeout(wakeTimer); wake.hidden = true; gate.hidden = true; };
+  const openChat = () => {
+    gate.hidden = true;
+    go.href = chatUrlFor(code);
+    wake.hidden = false;
+    go.focus();
+    wakeTimer = setTimeout(() => (location.href = go.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
+  };
   $$("[data-ask]").forEach((b) =>
     b.addEventListener("click", () => {
-      wake.hidden = false;
-      go.focus();
-      wakeTimer = setTimeout(() => (location.href = chatUrl.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
+      if (code) return openChat();
+      // 코드가 없으면 서버를 깨우며 기다리게 하지 않고 여기서 바로 안내한다
+      gate.hidden = false;
+      gateInput.value = "";
+      gateInput.focus();
     })
   );
-  $("[data-wake-cancel]").addEventListener("click", closeWake);
-  addEventListener("keydown", (e) => e.key === "Escape" && closeWake());
-  addEventListener("pageshow", closeWake); // 뒤로 가기로 돌아왔을 때 안내창 닫기
+  $(".gate form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const c = cleanCode(gateInput.value);
+    if (!c) return gateInput.focus();
+    code = c;
+    saveCode(c); // 마감일이 든 코드만 기억된다. 맞는 코드인지는 챗봇이 확인한다
+    openChat();
+  });
+  $$("[data-wake-cancel], [data-gate-close]").forEach((b) => b.addEventListener("click", closeAll));
+  addEventListener("keydown", (e) => e.key === "Escape" && closeAll());
+  addEventListener("pageshow", closeAll); // 뒤로 가기로 돌아왔을 때 안내창 닫기
 
   /* ---------- typing effect ---------- */
   const typed = $(".typed");
