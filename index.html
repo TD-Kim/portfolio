@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="no-js">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -20,6 +20,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <!-- 자바스크립트가 켜졌을 때만 스크롤 등장 효과를 쓴다. 꺼져 있으면 내용이 그대로 보인다 -->
+  <script>document.documentElement.classList.replace("no-js", "js")</script>
 </head>
 <body>
   <div class="progress" aria-hidden="true"></div>
@@ -40,11 +42,11 @@
   <main id="top">
     <section class="hero">
       <p class="hello mono">$ whoami</p>
-      <h1 class="hero-title"><span data-name></span></h1>
-      <p class="hero-role"><span class="typed"></span><span class="caret">|</span></p>
-      <p class="hero-tagline" data-tagline></p>
+      <h1 class="hero-title"><span data-name>김진용</span></h1>
+      <p class="hero-role"><span class="typed">Backend Developer</span><span class="caret">|</span></p>
+      <p class="hero-tagline" data-tagline>공공기관과 기업의 시스템을 5년 넘게 설계하고 만들어 온 백엔드 개발자입니다. 지금은 AI 에이전트를 공부하고 있습니다.</p>
       <div class="hero-cta">
-        <button type="button" class="btn btn-primary magnetic" data-ask>💬 저에 대해 물어보세요</button>
+        <button type="button" class="btn btn-primary magnetic" data-ask><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4 19.5l1.3-4.6A7.5 7.5 0 1 1 20 11.5z"/></svg><span>저에 대해 물어보세요</span></button>
         <a href="#projects" class="btn btn-ghost magnetic">프로젝트 보기</a>
       </div>
       <a href="#about" class="scroll-hint" aria-label="아래로 스크롤"><span></span></a>
@@ -53,7 +55,7 @@
     <section id="about" class="section">
       <h2 class="section-title reveal"><span class="num mono">01</span> About</h2>
       <div class="about-grid">
-        <div class="about-text reveal"></div>
+        <div class="about-text reveal"><p>요구사항 분석부터 설계, 개발, 배포, 운영까지 서비스 전체를 책임지는 개발자입니다.</p></div>
         <div class="stats reveal"></div>
       </div>
       <div class="marquee reveal" aria-label="기술 스택"><div class="marquee-track"></div></div>
@@ -62,6 +64,17 @@
     <section id="projects" class="section">
       <h2 class="section-title reveal"><span class="num mono">02</span> Projects</h2>
       <div class="projects"></div>
+      <noscript>
+        <ul class="noscript-list">
+          <li><b>병무청 디지털 플랫폼 개발</b> · 2025.06 — 진행 중</li>
+          <li><b>LMS (학습관리시스템) 개발</b> · 2023.12 — 2025.05</li>
+          <li><b>클라우드 운영 자동화 (국가정보자원관리원)</b> · 2022.05 — 2023.02</li>
+          <li><b>기업 홈페이지 구축 및 클라이언트 프로그램 개선</b> · 2023.02 — 2023.12</li>
+          <li><b>K-water 업무시스템 통합 구축</b> · 2021.03 — 2021.12</li>
+          <li><b>DB손해보험 사내 업무 자동화</b> · 2022.03 — 2022.05</li>
+        </ul>
+        <p class="noscript-note">자바스크립트를 켜면 프로젝트 설명과 챗봇을 볼 수 있어요.</p>
+      </noscript>
     </section>
 
     <section id="experience" class="section">
@@ -84,22 +97,24 @@
     <section id="contact" class="section contact">
       <h2 class="section-title reveal"><span class="num mono">05</span> Contact</h2>
       <p class="contact-lead reveal">함께 일하고 싶거나 궁금한 점이 있다면 편하게 연락주세요.<br />챗봇에게 물어보면 경력에 대해 더 자세히 답해 드리고, 메시지도 전해 드려요.</p>
-      <button type="button" class="btn btn-primary magnetic ask-cta reveal" data-ask>💬 저에 대해 물어보세요</button>
+      <button type="button" class="btn btn-primary magnetic ask-cta reveal" data-ask><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4 19.5l1.3-4.6A7.5 7.5 0 1 1 20 11.5z"/></svg><span>저에 대해 물어보세요</span></button>
       <a class="contact-email reveal magnetic" data-email></a>
       <div class="contact-links reveal"></div>
     </section>
   </main>
 
-  <button type="button" class="ask-fab" data-ask aria-label="저에 대해 물어보세요">💬<span>물어보기</span></button>
+  <button type="button" class="ask-fab" data-ask aria-label="저에 대해 물어보세요"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4 19.5l1.3-4.6A7.5 7.5 0 1 1 20 11.5z"/></svg><span>물어보기</span></button>
 
   <div class="wake gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
     <div class="wake-card">
-      <div class="gate-icon" aria-hidden="true">🔒</div>
+      <div class="gate-icon"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></div>
       <h3 id="gate-title">초대받은 분만 이용할 수 있어요</h3>
       <p>챗봇은 초대 코드가 있어야 사용할 수 있어요.<br />받으신 코드(또는 링크)를 입력해 주세요.</p>
-      <form class="gate-form">
-        <input data-gate-input type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: K7F2-Q9MX-AB3D" aria-label="초대 코드 또는 받은 링크" maxlength="400" />
+      <form class="gate-form" novalidate>
+        <label class="gate-label" for="gate-code">초대 코드</label>
+        <input id="gate-code" data-gate-input aria-describedby="gate-error" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: K7F2-Q9MX-AB3D" maxlength="400" />
         <button type="submit" class="btn btn-primary">입장하기</button>
+        <p class="gate-error" id="gate-error" data-gate-error role="alert" hidden>코드를 입력해 주세요. 받은 링크를 그대로 붙여 넣어도 돼요.</p>
       </form>
       <p class="wake-sub">코드가 없으신가요? <a data-gate-request class="gate-link">이메일로 요청하기</a></p>
       <div class="wake-actions">
@@ -121,7 +136,10 @@
     </div>
   </div>
 
-  <footer class="footer mono">© <span data-year></span> <span data-name-en></span></footer>
+  <footer class="footer mono">
+    <button type="button" class="still-toggle" data-still aria-pressed="false">⏸ 움직임 멈추기</button>
+    <p>© <span data-year></span> <span data-name-en>Jinyong Kim</span></p>
+  </footer>
 
   <script src="main.js"></script>
 </body>

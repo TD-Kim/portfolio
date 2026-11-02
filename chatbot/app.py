@@ -65,13 +65,11 @@ GREETING = """안녕하세요! 👋 저는 **김진용님의 포트폴리오 안
 
 **이런 키워드를 넣어 물어보면 정확한 답을 얻을 수 있어요**
 
-| 궁금한 것 | 키워드 예시 |
-|---|---|
-| 기술 경험 | `Spring Boot` `Oracle 튜닝` `Docker` `Kubernetes` |
-| 프로젝트 | `병무청` `LMS` `국가정보자원관리원` `K-water` |
-| 이력 | `경력` `자격증` `학력` `표창` |
-| 공부·도전 | `AI TOP 100` `GraphRAG` |
-| 그 밖에 | `GitHub 저장소` `메시지 남기기` |
+- **기술 경험**: `Spring Boot` `Oracle 튜닝` `Docker` `Kubernetes`
+- **프로젝트**: `병무청` `LMS` `국가정보자원관리원` `K-water`
+- **이력**: `경력` `자격증` `학력` `표창`
+- **공부·도전**: `AI TOP 100` `GraphRAG`
+- **그 밖에**: `GitHub 저장소` `메시지 남기기`
 
 아래 예시 질문을 눌러 바로 시작할 수도 있어요."""
 
@@ -96,7 +94,11 @@ st.markdown(
 .hero-sub { color: #9a98b0; margin: 0.25rem 0 1.4rem; }
 .hero-sub b { color: #ecebf5; }
 div[data-testid="stButton"] button { border-radius: 999px; width: 100%; text-align: left; }
-.foot { color: #6f6d85; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; }
+.foot { color: #8e8ca6; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; }
+/* 보내기 버튼을 누르기 쉬운 크기로 */
+[data-testid="stChatInputSubmitButton"] { min-width: 44px; min-height: 44px; }
+/* 키보드 포커스 표시 */
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #00d4ff !important; outline-offset: 2px; }
 </style>
 """,
     unsafe_allow_html=True,
