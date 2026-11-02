@@ -18,11 +18,26 @@ try:
 except Exception:  # secrets.toml 이 없으면 환경변수만 사용
     pass
 
-from agent import KEY_NAMES, MAX_USER_TURNS, ChatSession, build_agent, resolve_api_key  # noqa: E402
+from agent import (  # noqa: E402
+    KEY_NAMES,
+    MAX_USER_TURNS,
+    ChatSession,
+    DailyBudget,
+    Profile,
+    AccessControl,
+    build_agent,
+    parse_access_codes,
+    resolve_api_key,
+)
 
 st.set_page_config(page_title="김진용에게 질문하기", page_icon="💬", layout="centered")
 
 PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "")
+# 초대 코드. 비어 있으면 누구나 쓸 수 있다. 예: ACCESS_CODES = "카카오 인사팀:k7f2q9:2026-11-30,친구:m3x8zz"
+ACCESS_CODES = os.environ.get("ACCESS_CODES", "")
+CODE_TTL_HOURS = float(os.environ.get("CODE_TTL_HOURS", "24"))  # 처음 쓴 뒤 몇 시간 동안 쓸 수 있는지 (0 = 제한 없음)
+DAILY_LIMIT = int(os.environ.get("DAILY_QUESTION_LIMIT", "200"))  # 서버 전체 하루 질문 수
+MAX_CODE_TRIES = 5
 
 GREETING = """안녕하세요! 👋 저는 **김진용님의 포트폴리오 안내 에이전트**예요.
 진용님의 경력, 프로젝트, 기술에 대해 무엇이든 물어보세요.
@@ -73,6 +88,16 @@ def get_agent():
     return build_agent()
 
 
+@st.cache_resource
+def get_access(raw: str, ttl: float) -> AccessControl:  # 모든 방문자가 함께 쓰는 '처음 쓴 시각' 기록
+    return AccessControl(parse_access_codes(raw), ttl_hours=ttl)
+
+
+@st.cache_resource
+def get_budget() -> DailyBudget:  # 모든 방문자가 함께 쓰는 하루 한도
+    return DailyBudget(DAILY_LIMIT)
+
+
 if PORTFOLIO_URL:
     st.markdown(f"[← 포트폴리오로 돌아가기]({PORTFOLIO_URL})")
 st.markdown('<p class="hero-title">💬 김진용에게 질문하기</p>', unsafe_allow_html=True)
@@ -81,6 +106,55 @@ st.markdown(
     "경력·프로젝트 자료를 직접 찾아보고 답하며, 원하시면 진용님에게 메시지도 전해 드려요.</p>",
     unsafe_allow_html=True,
 )
+
+# ---- 초대 코드 확인: 링크의 ?code=... 또는 직접 입력
+access = get_access(ACCESS_CODES, CODE_TTL_HOURS)
+EXPIRED_TEXT = "⌛ 이 초대 코드는 사용 기간이 끝났어요. 다시 이용하고 싶으시면 아래 이메일로 연락 주세요."
+
+
+def admit(code: str, how: str) -> None:
+    st.session_state.access_code = code
+    # Streamlit Cloud 로그(Manage app → Logs)에서 누가 썼는지 볼 수 있다. 코드 값은 남기지 않는다.
+    print(f"[access] '{access.label(code)}' 입장({how})", flush=True)
+
+
+if access.enabled:
+    held = st.session_state.get("access_code")
+    if held and not access.still_valid(held):  # 열어 둔 탭에서 기간이 끝난 경우
+        st.session_state.pop("access_code")
+        st.session_state.code_status = "expired"
+    if not st.session_state.get("access_code"):
+        status = st.session_state.get("code_status")
+        if status is None and st.query_params.get("code"):
+            status, code = access.enter(st.query_params.get("code"))
+            if code:
+                admit(code, "링크")
+            st.session_state.code_status = status
+    if not st.session_state.get("access_code"):
+        tries = st.session_state.get("code_tries", 0)
+        if st.session_state.get("code_status") == "expired":
+            st.warning(EXPIRED_TEXT)
+        else:
+            st.info("🔒 초대받은 분만 사용할 수 있어요. 받으신 **초대 코드**를 입력해 주세요.")
+        if tries >= MAX_CODE_TRIES:
+            st.error("코드를 여러 번 잘못 입력했어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.")
+        else:
+            with st.form("code"):
+                given = st.text_input("초대 코드", type="password", max_chars=64)
+                if st.form_submit_button("입장하기", use_container_width=True):
+                    status, code = access.enter(given)
+                    st.session_state.code_status = status
+                    if code:
+                        admit(code, "직접 입력")
+                        st.rerun()
+                    st.session_state.code_tries = tries + 1
+                    if status == "expired":
+                        st.warning(EXPIRED_TEXT)
+                    else:
+                        st.error("코드가 맞지 않아요. 다시 확인해 주세요.")
+        email = Profile.load().data.get("contact", {}).get("email", "")
+        st.caption(f"코드가 없으신가요? {email} 로 연락 주시면 보내 드릴게요.")
+        st.stop()
 
 has_key = bool(resolve_api_key())
 agent = get_agent() if has_key else None
@@ -115,8 +189,15 @@ if question and agent is not None:
     with st.chat_message("user"):
         st.markdown(question)
     with st.chat_message("assistant", avatar="🧑‍💻"):
-        with st.spinner("자료를 찾아보는 중이에요…"):
-            reply = agent.answer(chat, question)
+        if access.enabled and not access.still_valid(st.session_state.get("access_code")):
+            reply = "⌛ 초대 코드 사용 기간이 끝났어요. 페이지를 새로고침하면 안내가 나와요."
+        elif not get_budget().take():
+            reply = "오늘 받을 수 있는 질문 수를 모두 채웠어요. 내일 다시 찾아 주시거나 이메일로 연락해 주세요 🙏"
+        else:
+            with st.spinner("자료를 찾아보는 중이에요…"):
+                reply = agent.answer(chat, question)
+            if access.enabled:
+                print(f"[access] '{access.label(st.session_state.access_code)}' 질문 {chat.turn}번째", flush=True)
         st.markdown(reply)
     history.append(("assistant", reply))
     if clicked:

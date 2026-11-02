@@ -199,5 +199,64 @@ class LeaveMessageTest(unittest.TestCase):
         self.assertIn("kjy.devops@gmail.com", client.calls[1]["messages"][-1]["content"][0]["content"])
 
 
+class AccessTest(unittest.TestCase):
+    # 2026-11-02 12:00 한국 시간
+    NOON = 1793588400.0
+
+    def make(self, raw, ttl=0):
+        from agent import AccessControl, parse_access_codes
+        now = [self.NOON]
+        return AccessControl(parse_access_codes(raw), ttl_hours=ttl, clock=lambda: now[0]), now
+
+    def test_parse_codes(self):
+        from agent import parse_access_codes
+        self.assertEqual(parse_access_codes(""), {})
+        self.assertEqual(parse_access_codes(None), {})
+        codes = parse_access_codes("\n 카카오 인사팀:k7f2q9 ,\n m3x8zz ,\n 토스:x9c4mb:2026-11-30,\n")
+        self.assertEqual(codes["k7f2q9"].label, "카카오 인사팀")
+        self.assertIsNone(codes["k7f2q9"].expires_on)
+        self.assertIn("m3x8zz", codes)
+        self.assertEqual((codes["x9c4mb"].label, codes["x9c4mb"].expires_on), ("토스", "2026-11-30"))
+
+    def test_enter(self):
+        ac, _ = self.make("친구:abc123")
+        self.assertEqual(ac.enter(" abc123 "), ("ok", "abc123"))
+        self.assertEqual(ac.enter("abc12")[0], "invalid")
+        self.assertEqual(ac.enter("")[0], "invalid")
+        self.assertEqual(ac.enter(None)[0], "invalid")
+        self.assertFalse(ac.still_valid("nope"))
+
+    def test_date_expiry_uses_korean_date(self):
+        ac, now = self.make("a:abc123:2026-11-02")
+        self.assertEqual(ac.enter("abc123")[0], "ok")
+        now[0] += 11 * 3600 + 59 * 60  # 11-02 23:59 한국 시간: 아직 사용 가능
+        self.assertTrue(ac.still_valid("abc123"))
+        now[0] += 120  # 11-03 00:01
+        self.assertFalse(ac.still_valid("abc123"))
+        self.assertEqual(ac.enter("abc123")[0], "expired")
+
+    def test_first_use_ttl(self):
+        ac, now = self.make("a:abc123,b:zzz999", ttl=24)
+        now[0] += 3600 * 100  # 쓰기 전에는 시계가 가지 않는다
+        self.assertEqual(ac.enter("abc123")[0], "ok")
+        now[0] += 23 * 3600
+        self.assertEqual(ac.enter("abc123")[0], "ok")  # 다시 들어와도 첫 사용 시각은 그대로
+        self.assertTrue(ac.still_valid("abc123"))
+        now[0] += 2 * 3600
+        self.assertFalse(ac.still_valid("abc123"))  # 열어 둔 탭도 막힌다
+        self.assertEqual(ac.enter("abc123")[0], "expired")
+        self.assertEqual(ac.enter("zzz999")[0], "ok")  # 다른 코드는 영향 없음
+
+    def test_daily_budget_resets_next_day(self):
+        from agent import DailyBudget
+        now = [1_800_000_000.0]
+        b = DailyBudget(2, clock=lambda: now[0])
+        self.assertTrue(b.take())
+        self.assertTrue(b.take())
+        self.assertFalse(b.take())
+        now[0] += 86400
+        self.assertTrue(b.take())
+
+
 if __name__ == "__main__":
     unittest.main()

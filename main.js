@@ -66,14 +66,18 @@
   /* ---------- chatbot: 깨우는 중 안내 후 이동 ---------- */
   const wake = $(".wake");
   const go = $("[data-wake-go]");
-  go.href = D.chatbotUrl;
+  // 포트폴리오 링크에 붙은 초대 코드(?code=...)를 챗봇 주소로 넘겨준다
+  const code = new URLSearchParams(location.search).get("code");
+  const chatUrl = new URL(D.chatbotUrl);
+  if (code) chatUrl.searchParams.set("code", code);
+  go.href = chatUrl.href;
   let wakeTimer;
   const closeWake = () => { clearTimeout(wakeTimer); wake.hidden = true; };
   $$("[data-ask]").forEach((b) =>
     b.addEventListener("click", () => {
       wake.hidden = false;
       go.focus();
-      wakeTimer = setTimeout(() => (location.href = D.chatbotUrl), 2500); // 안내를 잠깐 보여 준 뒤 이동
+      wakeTimer = setTimeout(() => (location.href = chatUrl.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
     })
   );
   $("[data-wake-cancel]").addEventListener("click", closeWake);
