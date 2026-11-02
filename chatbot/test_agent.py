@@ -74,6 +74,26 @@ class ProfileTest(unittest.TestCase):
         self.assertTrue(p.search("쿠버네티스"))  # 한글 -> Kubernetes
         self.assertEqual(p.search("존재하지않는단어"), [])
 
+    def test_search_finds_career_details(self):
+        p = Profile.load()
+        # 담당업무에 직접 적힌 기술: 그 프로젝트의 담당업무 원문이 나온다
+        hits = p.search("FFmpeg")
+        lms = next(h for h in hits if h.get("title", "").startswith("LMS") and "duties" in h)
+        self.assertTrue(any("FFmpeg" in x for x in lms["duties"]))
+        # 개발환경에만 있는 기술: env 에는 있고 duties 에는 없다 -> 챗봇이 둘을 구분할 수 있다
+        k8s = next(h for h in p.search("Kubernetes") if "env" in h)
+        self.assertIn("Kubernetes", k8s["env"])
+        self.assertFalse(any("Kubernetes" in x for x in k8s["duties"]))
+        # 기술 분류표에만 있는 기술
+        self.assertTrue(any("배포 및 CI/CD" in h for h in p.search("Jenkins")))
+        # 사이트에 없던 프로젝트도 찾는다
+        self.assertTrue(any("정관장" in h.get("title", "") for h in p.search("POS")))
+
+    def test_details_section(self):
+        p = Profile.load()
+        self.assertEqual(len(p.section("details")), 8)
+        self.assertIn("보안 및 인증", p.section("skill_table"))
+
     def test_overview_has_name(self):
         self.assertIn("김진용", Profile.load().overview())
 
