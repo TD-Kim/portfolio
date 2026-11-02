@@ -39,6 +39,7 @@ from agent import (  # noqa: E402
     build_agent,
     parse_access_codes,
     resolve_api_key,
+    signer_from_env,
 )
 
 st.set_page_config(page_title="진용님에 대해 물어보세요", page_icon="💬", layout="centered")
@@ -47,6 +48,10 @@ PORTFOLIO_URL = os.environ.get("PORTFOLIO_URL", "")
 # 초대 코드. 비어 있으면 누구나 쓸 수 있다. 예: ACCESS_CODES = "카카오 인사팀:k7f2q9:2026-11-30,친구:m3x8zz"
 ACCESS_CODES = os.environ.get("ACCESS_CODES", "")
 CODE_TTL_HOURS = float(os.environ.get("CODE_TTL_HOURS", "24"))  # 처음 쓴 뒤 몇 시간 동안 쓸 수 있는지 (0 = 제한 없음)
+# 서명 초대 코드: INVITE_SECRET 이 있으면 ?admin 페이지에서 Secrets 를 고치지 않고 코드를 만들 수 있다
+INVITE_SECRET = os.environ.get("INVITE_SECRET", "")
+REVOKED_INVITES = os.environ.get("REVOKED_INVITES", "")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 DAILY_LIMIT = int(os.environ.get("DAILY_QUESTION_LIMIT", "200"))  # 서버 전체 하루 질문 수
 MAX_CODE_TRIES = 5
 
@@ -100,14 +105,74 @@ def get_agent(version: float):  # version 이 바뀌면 새로 만든다
 
 
 @st.cache_resource
-def get_access(raw: str, ttl: float, version: float) -> AccessControl:  # 모든 방문자가 함께 쓰는 '처음 쓴 시각' 기록
-    return AccessControl(parse_access_codes(raw), ttl_hours=ttl)
+def get_access(raw: str, ttl: float, version: float, secret: str, revoked: str) -> AccessControl:
+    # 모든 방문자가 함께 쓰는 '처음 쓴 시각' 기록. Secrets 가 바뀌면 인자가 바뀌어 새로 만든다.
+    return AccessControl(parse_access_codes(raw), ttl_hours=ttl, signer=signer_from_env())
 
 
 @st.cache_resource
 def get_budget() -> DailyBudget:  # 모든 방문자가 함께 쓰는 하루 한도
     return DailyBudget(DAILY_LIMIT)
 
+
+# ---- 초대 링크 만들기 (관리자 전용): 챗봇 주소 뒤에 ?admin 을 붙여 연다
+if "admin" in st.query_params:
+    import datetime as dt
+    import hmac
+    from urllib.parse import quote
+
+    st.markdown('<p class="hero-title">🔑 초대 링크 만들기</p>', unsafe_allow_html=True)
+    signer = signer_from_env()
+    if not (ADMIN_PASSWORD and signer):
+        st.warning(
+            "Streamlit Secrets 에 `ADMIN_PASSWORD` 와 `INVITE_SECRET`(16자 이상의 아무 문자열)을 먼저 넣어 주세요. "
+            "INVITE_SECRET 은 한 번 정하면 바꾸지 마세요. 바꾸면 이전에 보낸 링크가 모두 막힙니다."
+        )
+        st.stop()
+
+    if not st.session_state.get("admin_ok"):
+        tries = st.session_state.get("admin_tries", 0)
+        if tries >= MAX_CODE_TRIES:
+            st.error("비밀번호를 여러 번 틀렸어요. 새로고침한 뒤 다시 시도해 주세요.")
+            st.stop()
+        with st.form("admin_login"):
+            pw = st.text_input("관리자 비밀번호", type="password")
+            if st.form_submit_button("들어가기", use_container_width=True):
+                if hmac.compare_digest(pw.encode(), ADMIN_PASSWORD.encode()):
+                    st.session_state.admin_ok = True
+                    st.rerun()
+                st.session_state.admin_tries = tries + 1
+                st.error("비밀번호가 맞지 않아요.")
+        st.stop()
+
+    site = PORTFOLIO_URL or Profile.load().data.get("siteUrl", "")
+    today = (dt.datetime.utcnow() + dt.timedelta(hours=9)).date()  # 한국 날짜
+    with st.form("make_invite", clear_on_submit=True):
+        label = st.text_input("누구에게 보내나요?", placeholder="예: 카카오 인사팀", max_chars=40)
+        until = st.date_input("언제까지 쓸 수 있나요? (그날 끝까지)", value=today + dt.timedelta(days=14), min_value=today)
+        made = st.form_submit_button("초대 링크 만들기", use_container_width=True)
+    if made:
+        try:
+            code, invite_id = signer.make(label, until.isoformat())
+        except ValueError as e:
+            st.error(str(e))
+        else:
+            st.session_state.setdefault("made", []).insert(0, (label.strip(), until.isoformat(), invite_id, code))
+            print(f"[admin] 초대 링크 생성: '{label.strip()}' ~{until.isoformat()} (id {invite_id})", flush=True)
+
+    for i, (lb, exp, invite_id, code) in enumerate(st.session_state.get("made", [])):
+        with st.container(border=True):
+            st.markdown(f"**{lb}** · {exp}까지 · id `{invite_id}`")
+            if site:
+                st.caption("포트폴리오 링크 (보낼 때 이걸 쓰세요)")
+                st.code(f"{site}?code={quote(code)}", language=None)
+            st.caption("챗봇 바로가기 링크")
+            st.code(f"{Profile.load().data.get('chatbotUrl', '')}/?code={quote(code)}", language=None)
+    st.caption(
+        "오른쪽 위 복사 버튼으로 복사해서 보내세요. 이 화면을 닫으면 목록은 사라지지만 링크는 계속 쓸 수 있어요. "
+        "특정 링크를 막으려면 Secrets 의 `REVOKED_INVITES` 에 그 id 를 쉼표로 이어 적으세요."
+    )
+    st.stop()
 
 if PORTFOLIO_URL:
     st.markdown(f"[← 포트폴리오로 돌아가기]({PORTFOLIO_URL})")
@@ -119,7 +184,7 @@ st.markdown(
 )
 
 # ---- 초대 코드 확인: 링크의 ?code=... 또는 직접 입력
-access = get_access(ACCESS_CODES, CODE_TTL_HOURS, AGENT_VERSION)
+access = get_access(ACCESS_CODES, CODE_TTL_HOURS, AGENT_VERSION, INVITE_SECRET, REVOKED_INVITES)
 EXPIRED_TEXT = "⌛ 이 초대 코드는 사용 기간이 끝났어요. 다시 이용하고 싶으시면 아래 이메일로 연락 주세요."
 
 
@@ -151,7 +216,7 @@ if access.enabled:
             st.error("코드를 여러 번 잘못 입력했어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.")
         else:
             with st.form("code"):
-                given = st.text_input("초대 코드", type="password", max_chars=64)
+                given = st.text_input("초대 코드", type="password", max_chars=300)
                 if st.form_submit_button("입장하기", use_container_width=True):
                     status, code = access.enter(given)
                     st.session_state.code_status = status

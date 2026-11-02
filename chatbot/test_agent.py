@@ -247,6 +247,58 @@ class AccessTest(unittest.TestCase):
         self.assertEqual(ac.enter("abc123")[0], "expired")
         self.assertEqual(ac.enter("zzz999")[0], "ok")  # 다른 코드는 영향 없음
 
+    def test_signed_invite(self):
+        from agent import AccessControl, InviteSigner
+        signer = InviteSigner("s" * 32)
+        code, inv_id = signer.make("카카오 인사팀", "2026-11-03")
+        now = [self.NOON]
+        ac = AccessControl({}, clock=lambda: now[0], signer=signer)
+        self.assertTrue(ac.enabled)
+        self.assertEqual(ac.enter(code), ("ok", code))
+        self.assertEqual(ac.label(code), "카카오 인사팀")
+        now[0] += 2 * 86400  # 11-04: 마감일 지남
+        self.assertEqual(ac.enter(code)[0], "expired")
+        self.assertFalse(ac.still_valid(code))
+
+    def test_signed_invite_cannot_be_forged(self):
+        import base64, json
+        from agent import AccessControl, InviteSigner
+        signer = InviteSigner("s" * 32)
+        code, _ = signer.make("친구", "2026-11-03")
+        ac = AccessControl({}, clock=lambda: self.NOON, signer=signer)
+        # 마감일을 바꿔치기
+        body = code.split(".")[1]
+        data = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        data["e"] = "2099-12-31"
+        fake_body = base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip("=")
+        self.assertEqual(ac.enter(f"i1.{fake_body}.{code.split('.')[2]}")[0], "invalid")
+        # 다른 비밀값으로 만든 코드
+        other, _ = InviteSigner("x" * 32).make("친구", "2026-11-03")
+        self.assertEqual(ac.enter(other)[0], "invalid")
+        self.assertEqual(ac.enter("i1.garbage")[0], "invalid")
+        self.assertEqual(ac.enter("i1." + "a" * 400)[0], "invalid")
+
+    def test_signed_invite_revoked(self):
+        from agent import AccessControl, InviteSigner
+        code, inv_id = InviteSigner("s" * 32).make("네이버", "2026-11-30")
+        ac = AccessControl({}, clock=lambda: self.NOON, signer=InviteSigner("s" * 32, revoked={inv_id}))
+        self.assertEqual(ac.enter(code)[0], "invalid")
+
+    def test_signer_rejects_bad_input(self):
+        from agent import InviteSigner
+        with self.assertRaises(ValueError):
+            InviteSigner("short")
+        with self.assertRaises(ValueError):
+            InviteSigner("s" * 32).make("이름", "11/30")
+
+    def test_static_and_signed_together(self):
+        from agent import AccessControl, InviteSigner, parse_access_codes
+        signer = InviteSigner("s" * 32)
+        code, _ = signer.make("토스", "2026-11-30")
+        ac = AccessControl(parse_access_codes("테스트:abc123"), clock=lambda: self.NOON, signer=signer)
+        self.assertEqual(ac.enter("abc123")[0], "ok")
+        self.assertEqual(ac.enter(code)[0], "ok")
+
     def test_daily_budget_resets_next_day(self):
         from agent import DailyBudget
         now = [1_800_000_000.0]

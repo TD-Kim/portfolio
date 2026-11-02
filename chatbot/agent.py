@@ -460,6 +460,80 @@ def parse_access_codes(raw: str | None) -> dict[str, InviteCode]:
     return codes
 
 
+class InviteSigner:
+    """Secrets 를 고치지 않고 초대 코드를 만들기 위한 서명 코드.
+
+    코드 = "i1." + (이름·마감일·id 를 담은 내용) + "." + 서명
+    서명은 INVITE_SECRET 으로 만들기 때문에, 그 비밀값을 모르는 사람은 코드를 위조하거나
+    이름·날짜를 바꿀 수 없다. 챗봇은 목록 없이 서명만 확인하면 된다.
+    특정 코드를 막고 싶으면 그 코드의 id 를 REVOKED_INVITES 에 적는다.
+    """
+
+    PREFIX = "i1."
+
+    def __init__(self, secret: str, revoked: set[str] | None = None):
+        if len(secret) < 16:
+            raise ValueError("INVITE_SECRET 은 16자 이상이어야 합니다.")
+        self.secret = secret.encode()
+        self.revoked = revoked or set()
+
+    @staticmethod
+    def _b64(data: bytes) -> str:
+        import base64
+
+        return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+    @staticmethod
+    def _unb64(text: str) -> bytes:
+        import base64
+
+        return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+    def _sign(self, body: str) -> str:
+        import hashlib
+        import hmac
+
+        return self._b64(hmac.new(self.secret, (self.PREFIX + body).encode(), hashlib.sha256).digest()[:12])
+
+    def make(self, label: str, expires_on: str, invite_id: str | None = None) -> tuple[str, str]:
+        """(코드, id) 를 돌려준다."""
+        import secrets as pysecrets
+
+        label = _clean(label, 40, "이름")
+        if not DATE_RE.match(expires_on or ""):
+            raise ValueError("마감일은 YYYY-MM-DD 형식이어야 합니다.")
+        invite_id = invite_id or pysecrets.token_hex(3)
+        payload = json.dumps({"l": label, "e": expires_on, "n": invite_id}, ensure_ascii=False, separators=(",", ":"))
+        body = self._b64(payload.encode())
+        return f"{self.PREFIX}{body}.{self._sign(body)}", invite_id
+
+    def read(self, code: str) -> tuple[InviteCode, str] | None:
+        """서명이 맞으면 (InviteCode, id), 아니면 None. 막은 코드도 None."""
+        import hmac
+
+        if not code.startswith(self.PREFIX) or len(code) > 300:
+            return None
+        body, _, sig = code[len(self.PREFIX):].partition(".")
+        if not body or not sig or not hmac.compare_digest(sig, self._sign(body)):
+            return None
+        try:
+            data = json.loads(self._unb64(body))
+            inv, invite_id = InviteCode(str(data["l"]), str(data["e"])), str(data["n"])
+        except (ValueError, KeyError, TypeError):
+            return None
+        if invite_id in self.revoked or not DATE_RE.match(inv.expires_on or ""):
+            return None
+        return inv, invite_id
+
+
+def signer_from_env() -> InviteSigner | None:
+    secret = os.environ.get("INVITE_SECRET", "").strip()
+    if not secret:
+        return None
+    revoked = {x.strip() for x in os.environ.get("REVOKED_INVITES", "").split(",") if x.strip()}
+    return InviteSigner(secret, revoked)
+
+
 class AccessControl:
     """초대 코드 확인과 만료.
 
@@ -468,10 +542,17 @@ class AccessControl:
       무료 서버가 잠들었다 깨면 다시 센다. 확실한 기한이 필요하면 날짜 만료를 함께 쓴다.
     """
 
-    def __init__(self, codes: dict[str, InviteCode], ttl_hours: float = 0, clock: Callable[[], float] = time.time):
+    def __init__(
+        self,
+        codes: dict[str, InviteCode],
+        ttl_hours: float = 0,
+        clock: Callable[[], float] = time.time,
+        signer: InviteSigner | None = None,
+    ):
         import threading
 
         self.codes = codes
+        self.signer = signer
         self.ttl = ttl_hours * 3600
         self.clock = clock
         self.first_used: dict[str, float] = {}
@@ -479,7 +560,17 @@ class AccessControl:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.codes)
+        return bool(self.codes) or self.signer is not None
+
+    def _lookup(self, code: str | None) -> InviteCode | None:
+        if not code:
+            return None
+        if code in self.codes:
+            return self.codes[code]
+        if self.signer:
+            found = self.signer.read(code)
+            return found[0] if found else None
+        return None
 
     def _match(self, given: str | None) -> str | None:
         import hmac
@@ -491,10 +582,14 @@ class AccessControl:
         for code in self.codes:  # 시간 차로 코드를 추측하지 못하게 전부 같은 방식으로 비교한다
             if hmac.compare_digest(code.encode(), given.encode()):
                 found = code
+        if found is None and self.signer and self.signer.read(given):
+            found = given
         return found
 
     def _expired(self, code: str, now: float) -> bool:
-        inv = self.codes[code]
+        inv = self._lookup(code)
+        if inv is None:  # 서명 코드가 그사이 막혔으면(REVOKED_INVITES) 만료로 본다
+            return True
         if inv.expires_on:
             today = time.strftime("%Y-%m-%d", time.gmtime(now + 9 * 3600))  # 한국 시간 날짜
             if today > inv.expires_on:
@@ -517,13 +612,14 @@ class AccessControl:
 
     def still_valid(self, code: str | None) -> bool:
         """이미 들어온 방문자가 질문할 때마다 확인한다. 열어 둔 탭도 만료되면 막힌다."""
-        if code not in self.codes:
+        if self._lookup(code) is None:
             return False
         with self._lock:
             return not self._expired(code, self.clock())
 
     def label(self, code: str) -> str:
-        return self.codes[code].label
+        inv = self._lookup(code)
+        return inv.label if inv else "?"
 
 
 class DailyBudget:
