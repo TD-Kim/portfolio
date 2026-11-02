@@ -16,6 +16,7 @@ import os
 import re
 import smtplib
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from email.message import EmailMessage
@@ -694,3 +695,142 @@ class CodeQuota:
         with self._lock:
             if self.used.get(key, 0) > 0:
                 self.used[key] -= 1
+
+
+# ---------------------------------------------------------------- 대화 기록 (비공개 GitHub 저장소)
+
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE_RE = re.compile(
+    r"(?<!\d)(?:\+?82[-.\s]?)?0?(?:1[016789]|2|[3-6]\d)[-.\s)]?\d{3,4}[-.\s]?\d{4}(?!\d)"
+)
+
+
+def mask_contacts(text: str) -> str:
+    """기록에 남기기 전에 이메일 주소와 전화번호를 가린다."""
+    text = _EMAIL_RE.sub("[이메일 가림]", text or "")
+    return _PHONE_RE.sub("[전화번호 가림]", text)
+
+
+class ConversationLogger:
+    """대화를 비공개 GitHub 저장소에 .md 파일로 남긴다. 대화(세션) 하나 = 파일 하나.
+
+    - 서버가 다시 켜져도 남도록 서버 바깥(GitHub)에 저장한다.
+    - 저장은 별도 스레드에서 해서 답변 속도에 영향이 없고, 실패해도 대화는 계속된다.
+    - 이메일·전화번호는 가려서 저장한다.
+    """
+
+    API = "https://api.github.com"
+
+    def __init__(self, token: str, repo: str, branch: str = "main", http: Callable[..., Any] | None = None,
+                 clock: Callable[[], float] = time.time, background: bool = True):
+        import queue
+        import threading
+
+        self.token, self.repo, self.branch = token, repo, branch
+        self.http = http or self._http
+        self.clock = clock
+        self._sha: dict[str, str] = {}  # 파일별 최신 sha (수정할 때 필요)
+        self._queue: "queue.Queue[tuple[str, str]]" = queue.Queue()
+        self.background = background
+        if background:
+            threading.Thread(target=self._worker, daemon=True).start()
+
+    # ---- HTTP
+    def _http(self, method: str, url: str, body: dict | None = None) -> tuple[int, Any]:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method, headers={
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "portfolio-chatbot",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, json.loads(r.read().decode() or "null")
+        except urllib.error.HTTPError as e:
+            return e.code, None
+
+    # ---- 쓰기
+    def new_conversation(self, label: str, invite_key: str | None) -> dict[str, Any]:
+        import secrets as pysecrets
+
+        kst = time.gmtime(self.clock() + 9 * 3600)
+        safe = re.sub(r"[^\w가-힣-]+", "-", label or "익명").strip("-")[:30] or "익명"
+        path = f"{time.strftime('%Y-%m', kst)}/{time.strftime('%m%d-%H%M', kst)}_{safe}_{pysecrets.token_hex(2)}.md"
+        return {"path": path, "label": label or "익명", "invite": invite_key or "-",
+                "started": time.strftime("%Y-%m-%d %H:%M", kst), "turns": []}
+
+    def add_turn(self, conv: dict[str, Any], question: str, answer: str, tools: list[str]) -> None:
+        kst = time.gmtime(self.clock() + 9 * 3600)
+        conv["turns"].append({"at": time.strftime("%H:%M", kst), "q": mask_contacts(question),
+                              "a": mask_contacts(answer), "tools": list(tools)})
+        doc = self.render(conv)
+        if self.background:
+            self._queue.put((conv["path"], doc))
+        else:
+            self._save(conv["path"], doc)
+
+    @staticmethod
+    def render(conv: dict[str, Any]) -> str:
+        lines = [f"### {conv['label']} · {conv['started']}", "",
+                 f"- 초대 코드: `{conv['invite']}`", f"- 질문 수: {len(conv['turns'])}",
+                 "- 이메일·전화번호는 가려서 저장했습니다.", ""]
+        for i, t in enumerate(conv["turns"], 1):
+            tools = f" · 도구: {', '.join(t['tools'])}" if t["tools"] else ""
+            lines += [f"#### {i}. {t['at']}{tools}", "", "**방문자**", "", t["q"], "", "**챗봇**", "", t["a"], ""]
+        return "\n".join(lines)
+
+    def _worker(self) -> None:
+        while True:
+            path, doc = self._queue.get()
+            try:
+                self._save(path, doc)
+            except Exception as e:  # 기록 실패로 챗봇이 멈추면 안 된다
+                print(f"[log] 저장 실패 {path}: {e}", flush=True)
+
+    def _save(self, path: str, doc: str) -> None:
+        import base64
+        from urllib.parse import quote
+
+        url = f"{self.API}/repos/{self.repo}/contents/{quote(path)}"
+        body = {"message": f"log: {path}", "content": base64.b64encode(doc.encode()).decode(), "branch": self.branch}
+        if path in self._sha:
+            body["sha"] = self._sha[path]
+        status, data = self.http("PUT", url, body)
+        if status == 409 or status == 422:  # sha 가 어긋났으면 최신 sha 를 받아 한 번 더
+            st_, cur = self.http("GET", f"{url}?ref={self.branch}")
+            if st_ == 200 and cur:
+                body["sha"] = cur["sha"]
+                status, data = self.http("PUT", url, body)
+        if status in (200, 201) and data:
+            self._sha[path] = data["content"]["sha"]
+        else:
+            print(f"[log] 저장 실패 {path}: HTTP {status}", flush=True)
+
+    # ---- 읽기 (관리자 페이지)
+    def recent(self, months: int = 2, limit: int = 50) -> list[str]:
+        """최근 대화 파일 경로 목록 (최신순)."""
+        now = time.gmtime(self.clock() + 9 * 3600)
+        y, m = now.tm_year, now.tm_mon
+        paths: list[str] = []
+        for _ in range(months):
+            status, data = self.http("GET", f"{self.API}/repos/{self.repo}/contents/{y:04d}-{m:02d}?ref={self.branch}")
+            if status == 200 and isinstance(data, list):
+                paths += [f["path"] for f in data if f.get("type") == "file" and f["name"].endswith(".md")]
+            y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+        return sorted(paths, key=lambda p: p.split("/")[-1], reverse=True)[:limit]
+
+    def read(self, path: str) -> str:
+        import base64
+        from urllib.parse import quote
+
+        status, data = self.http("GET", f"{self.API}/repos/{self.repo}/contents/{quote(path)}?ref={self.branch}")
+        if status != 200 or not data:
+            return f"(불러오지 못했어요: HTTP {status})"
+        return base64.b64decode(data["content"]).decode()
+
+
+def logger_from_env() -> ConversationLogger | None:
+    token, repo = os.environ.get("LOG_GITHUB_TOKEN", "").strip(), os.environ.get("LOG_REPO", "").strip()
+    if not (token and repo):
+        return None
+    return ConversationLogger(token, repo, os.environ.get("LOG_BRANCH", "main").strip() or "main")

@@ -68,6 +68,8 @@ python chatbot/live_check.py              # 실제 Claude 로 시나리오 10개
 | `CODE_TTL_HOURS` | 선택 | 코드를 처음 쓴 뒤 사용할 수 있는 시간 (기본 24, 0이면 제한 없음) |
 | `DAILY_QUESTION_LIMIT` | 선택 | 서버 전체 하루 질문 수 상한 (기본 200) |
 | `QUESTIONS_PER_CODE` | 선택 | 초대 코드 하나로 물어볼 수 있는 질문 수 (기본 30, 여러 탭·기기 합산) |
+| `LOG_GITHUB_TOKEN` | 선택 | 대화 기록용 GitHub 토큰 (기록 저장소 하나에만 Contents 읽기·쓰기) |
+| `LOG_REPO` | 선택 | 대화 기록 저장소, 예: `TD-Kim/portfolio-logs` (**반드시 비공개**) |
 | `INVITE_SECRET` | 선택 | 서명 초대 코드용 비밀값(16자 이상). 넣으면 `?admin` 페이지에서 링크를 만들 수 있음 |
 | `ADMIN_PASSWORD` | 선택 | `?admin` 페이지 비밀번호 |
 | `REVOKED_INVITES` | 선택 | 막을 서명 코드의 id 목록(쉼표) |
@@ -117,3 +119,20 @@ python chatbot/live_check.py              # 실제 Claude 로 시나리오 10개
 
 무료 앱은 한동안 방문이 없으면 잠듭니다. 그래서 포트폴리오 버튼을 누르면 "깨어나는 데 30초~1분 걸릴 수 있다"는 안내를 먼저 보여 줍니다.
 **Anthropic 콘솔에서 월 사용 한도(Spend limit)를 꼭 걸어 두세요.**
+
+## 대화 기록 (비공개 GitHub 저장소)
+
+Streamlit Cloud 서버의 파일은 재부팅·배포 때 지워지므로, 대화 기록은 **비공개 GitHub 저장소**에 .md 파일로 남깁니다.
+
+- 대화(브라우저 세션) 하나가 파일 하나: `2026-11/1102-1530_카카오-인사팀_a1b2.md`
+- 질문·답변·시각·사용한 도구·초대 코드 id 를 남기고, **이메일과 전화번호는 가려서** 저장합니다.
+- 저장은 답변 뒤에 별도 스레드에서 해서 답변 속도에 영향이 없고, 저장에 실패해도 대화는 계속됩니다(로그에 `[log] 저장 실패`).
+- 방문자에게는 챗봇 화면 아래에 "질문과 답변이 기록돼요" 안내가 나옵니다.
+- 관리자 페이지(`?admin`)의 **대화 기록** 탭이나 GitHub 앱에서 볼 수 있습니다.
+
+설정:
+1. GitHub 에서 **비공개** 저장소 `portfolio-logs` 를 만듭니다 (Add a README 체크).
+2. Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token
+   - Repository access: **Only select repositories** → `portfolio-logs`
+   - Permissions → Repository permissions → **Contents: Read and write** (나머지는 그대로)
+3. Streamlit Secrets 에 `LOG_GITHUB_TOKEN`, `LOG_REPO = "TD-Kim/portfolio-logs"` 를 넣습니다.

@@ -40,6 +40,7 @@ from agent import (  # noqa: E402
     build_agent,
     parse_access_codes,
     resolve_api_key,
+    logger_from_env,
     signer_from_env,
 )
 
@@ -113,6 +114,11 @@ def get_access(raw: str, ttl: float, version: float, secret: str, revoked: str) 
 
 
 @st.cache_resource
+def get_logger(version: float, token: str, repo: str):  # 대화 기록기 (없으면 None)
+    return logger_from_env()
+
+
+@st.cache_resource
 def get_quota(limit: int, version: float) -> CodeQuota:  # 초대 코드별 질문 수 (모든 방문자가 함께 씀)
     return CodeQuota(limit)
 
@@ -128,7 +134,7 @@ if "admin" in st.query_params:
     import hmac
     from urllib.parse import quote
 
-    st.markdown('<p class="hero-title">🔑 초대 링크 만들기</p>', unsafe_allow_html=True)
+    st.markdown('<p class="hero-title">🔑 관리자</p>', unsafe_allow_html=True)
     signer = signer_from_env()
     if not (ADMIN_PASSWORD and signer):
         st.warning(
@@ -152,33 +158,58 @@ if "admin" in st.query_params:
                 st.error("비밀번호가 맞지 않아요.")
         st.stop()
 
-    site = PORTFOLIO_URL or Profile.load().data.get("siteUrl", "")
-    today = (dt.datetime.utcnow() + dt.timedelta(hours=9)).date()  # 한국 날짜
-    with st.form("make_invite", clear_on_submit=True):
-        label = st.text_input("누구에게 보내나요?", placeholder="예: 카카오 인사팀", max_chars=40)
-        until = st.date_input("언제까지 쓸 수 있나요? (그날 끝까지)", value=today + dt.timedelta(days=14), min_value=today)
-        made = st.form_submit_button("초대 링크 만들기", use_container_width=True)
-    if made:
-        try:
-            code, invite_id = signer.make(label, until.isoformat())
-        except ValueError as e:
-            st.error(str(e))
-        else:
-            st.session_state.setdefault("made", []).insert(0, (label.strip(), until.isoformat(), invite_id, code))
-            print(f"[admin] 초대 링크 생성: '{label.strip()}' ~{until.isoformat()} (id {invite_id})", flush=True)
+    tab_invite, tab_logs = st.tabs(["🔗 초대 링크", "🗂️ 대화 기록"])
+    with tab_invite:
+        site = PORTFOLIO_URL or Profile.load().data.get("siteUrl", "")
+        today = (dt.datetime.utcnow() + dt.timedelta(hours=9)).date()  # 한국 날짜
+        with st.form("make_invite", clear_on_submit=True):
+            label = st.text_input("누구에게 보내나요?", placeholder="예: 카카오 인사팀", max_chars=40)
+            until = st.date_input("언제까지 쓸 수 있나요? (그날 끝까지)", value=today + dt.timedelta(days=14), min_value=today)
+            made = st.form_submit_button("초대 링크 만들기", use_container_width=True)
+        if made:
+            try:
+                code, invite_id = signer.make(label, until.isoformat())
+            except ValueError as e:
+                st.error(str(e))
+            else:
+                st.session_state.setdefault("made", []).insert(0, (label.strip(), until.isoformat(), invite_id, code))
+                print(f"[admin] 초대 링크 생성: '{label.strip()}' ~{until.isoformat()} (id {invite_id})", flush=True)
 
-    for i, (lb, exp, invite_id, code) in enumerate(st.session_state.get("made", [])):
-        with st.container(border=True):
-            st.markdown(f"**{lb}** · {exp}까지 · id `{invite_id}`")
-            if site:
-                st.caption("포트폴리오 링크 (보낼 때 이걸 쓰세요)")
-                st.code(f"{site}?code={quote(code)}", language=None)
-            st.caption("챗봇 바로가기 링크")
-            st.code(f"{Profile.load().data.get('chatbotUrl', '')}/?code={quote(code)}", language=None)
-    st.caption(
-        "오른쪽 위 복사 버튼으로 복사해서 보내세요. 이 화면을 닫으면 목록은 사라지지만 링크는 계속 쓸 수 있어요. "
-        "특정 링크를 막으려면 Secrets 의 `REVOKED_INVITES` 에 그 id 를 쉼표로 이어 적으세요."
-    )
+        for i, (lb, exp, invite_id, code) in enumerate(st.session_state.get("made", [])):
+            with st.container(border=True):
+                st.markdown(f"**{lb}** · {exp}까지 · id `{invite_id}`")
+                if site:
+                    st.caption("포트폴리오 링크 (보낼 때 이걸 쓰세요)")
+                    st.code(f"{site}?code={quote(code)}", language=None)
+                st.caption("챗봇 바로가기 링크")
+                st.code(f"{Profile.load().data.get('chatbotUrl', '')}/?code={quote(code)}", language=None)
+        st.caption(
+            "오른쪽 위 복사 버튼으로 복사해서 보내세요. 이 화면을 닫으면 목록은 사라지지만 링크는 계속 쓸 수 있어요. "
+            "특정 링크를 막으려면 Secrets 의 `REVOKED_INVITES` 에 그 id 를 쉼표로 이어 적으세요."
+        )
+
+    with tab_logs:
+        conv_log = get_logger(AGENT_VERSION, os.environ.get("LOG_GITHUB_TOKEN", ""), os.environ.get("LOG_REPO", ""))
+        if conv_log is None:
+            st.info("Secrets 에 `LOG_GITHUB_TOKEN` 과 `LOG_REPO` 를 넣으면 대화 기록이 여기에 보여요.")
+        else:
+            if st.button("새로고침", use_container_width=True):
+                st.session_state.pop("log_paths", None)
+            if "log_paths" not in st.session_state:
+                with st.spinner("기록을 불러오는 중…"):
+                    st.session_state.log_paths = conv_log.recent()
+            paths = st.session_state.log_paths
+            if not paths:
+                st.caption("아직 기록이 없어요.")
+            else:
+                pick = st.selectbox(
+                    f"최근 대화 {len(paths)}개 (최신순)",
+                    paths,
+                    format_func=lambda p: p.split("/")[-1].rsplit("_", 1)[0].replace("_", " · ", 1),
+                )
+                with st.container(border=True):
+                    st.markdown(conv_log.read(pick))
+                st.caption(f"GitHub 앱의 `{conv_log.repo}` 저장소에서도 같은 파일을 볼 수 있어요.")
     st.stop()
 
 if PORTFOLIO_URL:
@@ -193,6 +224,7 @@ st.markdown(
 # ---- 초대 코드 확인: 링크의 ?code=... 또는 직접 입력
 access = get_access(ACCESS_CODES, CODE_TTL_HOURS, AGENT_VERSION, INVITE_SECRET, REVOKED_INVITES)
 quota = get_quota(QUESTIONS_PER_CODE, AGENT_VERSION)
+conv_log = get_logger(AGENT_VERSION, os.environ.get("LOG_GITHUB_TOKEN", ""), os.environ.get("LOG_REPO", ""))
 EXPIRED_TEXT = "⌛ 이 초대 코드는 사용 기간이 끝났어요. 다시 이용하고 싶으시면 아래 이메일로 연락 주세요."
 
 
@@ -286,11 +318,17 @@ if question and agent is not None:
                 quota.refund(quota_key)
             reply = "오늘 받을 수 있는 질문 수를 모두 채웠어요. 내일 다시 찾아 주시거나 이메일로 연락해 주세요 🙏"
         else:
-            before = chat.turn
+            before, tools_before = chat.turn, len(chat.tool_log)
             with st.spinner("자료를 찾아보는 중이에요…"):
                 reply = agent.answer(chat, question)
             if quota_key and chat.turn == before:  # 답변에 실패한 질문은 세지 않는다
                 quota.refund(quota_key)
+            if conv_log and chat.turn > before:  # 답변한 질문만 기록한다 (연락처는 가려서)
+                if "log_conv" not in st.session_state:
+                    st.session_state.log_conv = conv_log.new_conversation(
+                        access.label(st.session_state.access_code) if access.enabled else "공개", quota_key
+                    )
+                conv_log.add_turn(st.session_state.log_conv, question, reply, chat.tool_log[tools_before:])
             if access.enabled:
                 print(
                     f"[access] '{access.label(st.session_state.access_code)}' 질문 "
@@ -306,6 +344,8 @@ left = MAX_USER_TURNS - chat.turn
 if access.enabled and st.session_state.get("access_code"):
     left = min(left, quota.remaining(access.key(st.session_state.access_code)))
 st.markdown(
-    f'<p class="foot">AI가 자료를 바탕으로 답하지만 틀릴 수 있어요. 중요한 내용은 직접 확인해 주세요 · 남은 질문 {left}개</p>',
+    '<p class="foot">AI가 자료를 바탕으로 답하지만 틀릴 수 있어요. 중요한 내용은 직접 확인해 주세요 · '
+    + (f"남은 질문 {left}개" if not conv_log else f"남은 질문 {left}개<br>더 나은 답변을 위해 질문과 답변이 기록돼요 (이메일·전화번호는 가려서 저장)")
+    + "</p>",
     unsafe_allow_html=True,
 )

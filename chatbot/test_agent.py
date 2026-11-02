@@ -348,5 +348,65 @@ class AccessTest(unittest.TestCase):
         self.assertTrue(b.take())
 
 
+class LoggingTest(unittest.TestCase):
+    def test_mask_contacts(self):
+        from agent import mask_contacts
+        t = mask_contacts("메일 hr.team+jobs@kakao.co.kr 이나 010-1234-5678, 02 123 4567, +82 10 9876 5432 로 주세요. 2026-11-30 마감, 30개")
+        self.assertNotIn("kakao.co.kr", t)
+        self.assertNotIn("1234-5678", t)
+        self.assertNotIn("123 4567", t)
+        self.assertNotIn("9876", t)
+        self.assertIn("2026-11-30", t)  # 날짜·숫자는 그대로
+        self.assertIn("30개", t)
+
+    def make_logger(self):
+        from agent import ConversationLogger
+        calls = []
+        store = {}
+
+        def http(method, url, body=None):
+            calls.append((method, url, body))
+            if method == "PUT":
+                if url in store and body.get("sha") != store[url]:
+                    return 409, None
+                store[url] = f"sha{len(calls)}"
+                return (200 if "sha" in body else 201), {"content": {"sha": store[url]}}
+            if method == "GET" and url.endswith("/contents/2026-11?ref=main"):
+                return 200, [{"type": "file", "name": "1102-0900_a_aaaa.md", "path": "2026-11/1102-0900_a_aaaa.md"},
+                             {"type": "file", "name": "1102-1530_b_bbbb.md", "path": "2026-11/1102-1530_b_bbbb.md"}]
+            return 404, None
+
+        log = ConversationLogger("tok", "TD-Kim/portfolio-logs", http=http, clock=lambda: 1793588400.0, background=False)
+        return log, calls
+
+    def test_conversation_file_is_created_then_updated(self):
+        import base64
+        log, calls = self.make_logger()
+        conv = log.new_conversation("카카오 인사팀", "id:a1b2c3")
+        self.assertRegex(conv["path"], r"^2026-11/1102-1200_카카오-인사팀_[0-9a-f]{4}\.md$")
+        log.add_turn(conv, "연락처는 hr@example.com 이에요", "확인했어요", ["leave_message"])
+        log.add_turn(conv, "두 번째 질문", "두 번째 답", [])
+        puts = [c for c in calls if c[0] == "PUT"]
+        self.assertEqual(len(puts), 2)
+        self.assertNotIn("sha", puts[0][2])  # 처음엔 새 파일
+        self.assertIn("sha", puts[1][2])  # 다음부터는 같은 파일 수정
+        doc = base64.b64decode(puts[1][2]["content"]).decode()
+        self.assertIn("## 2.", doc)
+        self.assertNotIn("hr@example.com", doc)
+        self.assertIn("[이메일 가림]", doc)
+        self.assertIn("도구: leave_message", doc)
+
+    def test_recent_lists_newest_first(self):
+        log, _ = self.make_logger()
+        self.assertEqual(log.recent()[0], "2026-11/1102-1530_b_bbbb.md")
+
+    def test_failure_does_not_raise(self):
+        from agent import ConversationLogger
+        log = ConversationLogger("t", "r", http=lambda *a, **k: (500, None), background=False)
+        conv = log.new_conversation("", None)
+        log.add_turn(conv, "q", "a", [])  # 예외 없이 끝나야 한다
+        self.assertIn("_익명_", conv["path"])
+
+
 if __name__ == "__main__":
     unittest.main()
