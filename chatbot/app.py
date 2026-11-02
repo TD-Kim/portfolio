@@ -65,11 +65,13 @@ GREETING = """안녕하세요! 👋 저는 **김진용님의 포트폴리오 안
 
 **이런 키워드를 넣어 물어보면 정확한 답을 얻을 수 있어요**
 
-- **기술 경험**: `Spring Boot` `Oracle 튜닝` `Docker` `Kubernetes`
-- **프로젝트**: `병무청` `LMS` `국가정보자원관리원` `K-water`
-- **이력**: `경력` `자격증` `학력` `표창`
-- **공부·도전**: `AI TOP 100` `GraphRAG`
-- **그 밖에**: `GitHub 저장소` `메시지 남기기`
+| 궁금한 것 | 키워드 예시 |
+|---|---|
+| 기술 경험 | `Spring Boot` `Oracle 튜닝` `Docker` `Kubernetes` |
+| 프로젝트 | `병무청` `LMS` `국가정보자원관리원` `K-water` |
+| 이력 | `경력` `자격증` `학력` `표창` |
+| 공부·도전 | `AI TOP 100` `GraphRAG` |
+| 그 밖에 | `GitHub 저장소` `메시지 남기기` |
 
 아래 예시 질문을 눌러 바로 시작할 수도 있어요."""
 
@@ -95,6 +97,11 @@ st.markdown(
 .hero-sub b { color: #ecebf5; }
 div[data-testid="stButton"] button { border-radius: 999px; width: 100%; text-align: left; }
 .foot { color: #8e8ca6; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; }
+/* 키워드 표: 왼쪽 칸은 가장 긴 글자에 맞춰 한 줄로, 나머지 폭은 오른쪽 칸이 쓴다 */
+[data-testid="stMarkdownContainer"] table th:first-child,
+[data-testid="stMarkdownContainer"] table td:first-child { white-space: nowrap; width: 1%; }
+/* 키워드는 글자 중간에서 끊지 않고 하나씩 통째로 줄을 넘긴다 */
+[data-testid="stMarkdownContainer"] table td code { white-space: nowrap; display: inline-block; margin: 2px 0; }
 /* 보내기 버튼을 누르기 쉬운 크기로 */
 [data-testid="stChatInputSubmitButton"] { min-width: 44px; min-height: 44px; }
 /* 키보드 포커스 표시 */

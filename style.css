@@ -212,15 +212,23 @@ body::before {
 /* ---------- responsive ---------- */
 @media (max-width: 760px) {
   .nav { padding: 10px 10px 10px 18px; gap: 8px; }
-  .nav nav a { padding: 12px 8px; font-size: 0.85rem; }
+  .nav nav a { padding: 12px 6px; font-size: 0.85rem; }
   .footer { padding-bottom: 104px; } /* 떠 있는 버튼이 맨 아래 글자를 가리지 않게 */
   .about-grid, .projects, .exp-grid { grid-template-columns: 1fr; }
   .section { padding: 90px 16px; }
   .cursor-glow { display: none; }
 }
-@media (max-width: 420px) {
+@media (max-width: 520px) {
+  /* 좁은 화면: 로고를 숨기고 메뉴 5개가 바를 고르게 채우게 해서 마지막 메뉴가 밀려나지 않게 한다 */
   .nav .logo { display: none; }
-  .nav { justify-content: center; }
+  .nav { padding: 4px 6px; }
+  .nav nav { flex: 1; justify-content: space-between; gap: 0; }
+}
+@media (max-width: 389px) {
+  .nav nav a { padding: 12px 4px; font-size: 0.82rem; }
+}
+@media (max-width: 339px) {
+  .nav nav a { padding: 12px 3px; font-size: 0.78rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -299,12 +307,6 @@ button.btn-ghost { border: 1px solid var(--border); }
   border: 1px solid var(--border); border-radius: 999px; padding: 10px 16px; min-height: 44px; margin-bottom: 12px;
 }
 .still-toggle:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.3); }
-
-/* 이모지 대신 쓰는 아이콘 */
-.ico { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.btn .ico { margin-right: 8px; }
-.ask-fab .ico { width: 22px; height: 22px; }
-.ico-lg { width: 40px; height: 40px; color: var(--a2); }
 
 /* 코드 입력칸 라벨과 안내 */
 .gate-form { flex-wrap: wrap; }
