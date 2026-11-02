@@ -129,6 +129,7 @@ def get_access(raw: str, ttl: float, version: float, secret: str, revoked: str, 
     return AccessControl(
         parse_access_codes(raw), ttl_hours=ttl, signer=signer_from_env(),
         labels=registry.labels if registry else None,
+        blocked=registry.blocked if registry else None,
     )
 
 
@@ -216,16 +217,45 @@ if "admin" in st.query_params:
         if not registry:
             st.caption("`LOG_GITHUB_TOKEN`, `LOG_REPO` 를 넣으면 보낸 초대가 여기에 쌓여요.")
         else:
-            items = sorted(registry.load().items(), key=lambda kv: kv[1].get("created", ""), reverse=True)
+            usage = get_quota(QUESTIONS_PER_CODE, AGENT_VERSION)
+            items = sorted(
+                ((k, v) for k, v in registry.load().items() if not v.get("deleted")),
+                key=lambda kv: kv[1].get("created", ""),
+                reverse=True,
+            )
             if not items:
                 st.caption("아직 없어요.")
             for invite_id, info in items:
-                exp = info.get("expires", "")
-                ended = exp < today.isoformat()
-                with st.expander(f"{'⌛ ' if ended else ''}{info.get('label', '')} · {exp}까지" + (" (끝남)" if ended else "")):
-                    show_invite(info.get("label", ""), exp, invite_id, signer.make_short(exp, invite_id)[0])
+                exp, lb = info.get("expires", ""), info.get("label", "")
+                if info.get("revoked"):
+                    state = "⛔ 막음"
+                elif exp < today.isoformat():
+                    state = "⌛ 끝남"
+                else:
+                    state = "✅ 사용 중"
+                used = QUESTIONS_PER_CODE - usage.remaining("id:" + invite_id)
+                with st.expander(f"{state} · {lb} · {exp}까지 · 질문 {used}/{QUESTIONS_PER_CODE}"):
+                    show_invite(lb, exp, invite_id, signer.make_short(exp, invite_id)[0])
+                    st.caption(f"만든 때 {info.get('created', '-')}" + (f" · 바꾼 때 {info['changed']}" if info.get("changed") else ""))
+                    col1, col2 = st.columns(2)
+                    if info.get("revoked"):
+                        if col1.button("다시 허용", key=f"restore-{invite_id}", use_container_width=True):
+                            registry.set_revoked(invite_id, False)
+                            print(f"[admin] 초대 다시 허용: '{lb}' (id {invite_id})", flush=True)
+                            st.rerun()
+                    elif col1.button("⛔ 막기", key=f"revoke-{invite_id}", use_container_width=True):
+                        registry.set_revoked(invite_id, True)
+                        print(f"[admin] 초대 막음: '{lb}' (id {invite_id})", flush=True)
+                        st.rerun()
+                    with col2.popover("🗑️ 삭제", use_container_width=True):
+                        st.caption("목록에서 지우고 이 코드도 막아요. 되돌릴 수 없어요.")
+                        if st.button("정말 삭제", key=f"delete-{invite_id}", type="primary", use_container_width=True):
+                            registry.delete(invite_id)
+                            print(f"[admin] 초대 삭제: '{lb}' (id {invite_id})", flush=True)
+                            st.rerun()
         st.caption(
-            "코드 오른쪽 위 복사 버튼으로 복사해요. 특정 코드를 막으려면 Secrets 의 `REVOKED_INVITES` 에 그 id 를 쉼표로 이어 적어요."
+            "코드 오른쪽 위 복사 버튼으로 복사해요. 막으면 바로 적용되고, 이미 들어와 있던 사람도 다음 질문부터 막혀요. "
+            "질문 수는 서버가 다시 켜지면 0부터 다시 세요."
         )
 
     with tab_logs:

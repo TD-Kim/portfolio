@@ -407,6 +407,39 @@ class AccessTest(unittest.TestCase):
         self.assertEqual(reg.labels(), {"a1b2": "카카오 인사팀"})
         self.assertEqual(json.loads(store["invites.json"])["a1b2"]["expires"], "2026-11-30")
 
+    def test_admin_can_block_restore_and_delete_invites(self):
+        import base64
+        from agent import AccessControl, ConversationLogger, InviteRegistry, InviteSigner
+        store = {}
+
+        def http(method, url, body=None):
+            if method == "GET":
+                if "f" in store:
+                    return 200, {"sha": "s", "content": base64.b64encode(store["f"]).decode()}
+                return 404, None
+            store["f"] = base64.b64decode(body["content"])
+            return 200, {"content": {"sha": "s"}}
+
+        reg = InviteRegistry(ConversationLogger("t", "r", http=http, background=False))
+        signer = InviteSigner("s" * 32)
+        code, inv_id = signer.make_short("2026-11-30")
+        other, other_id = signer.make_short("2026-11-30")
+        reg.add(inv_id, "카카오", "2026-11-30")
+        reg.add(other_id, "네이버", "2026-11-30")
+        ac = AccessControl({}, clock=lambda: self.NOON, signer=signer, labels=reg.labels, blocked=reg.blocked)
+
+        self.assertEqual(ac.enter(code)[0], "ok")
+        self.assertTrue(reg.set_revoked(inv_id, True))
+        self.assertFalse(ac.still_valid(code))  # 이미 들어와 있던 사람도 다음 질문부터 막힌다
+        self.assertEqual(ac.enter(code)[0], "expired")  # 막은 코드는 '기간이 끝났어요' 안내로 정중하게
+        self.assertEqual(ac.enter(other)[0], "ok")  # 다른 코드는 그대로
+        self.assertTrue(reg.set_revoked(inv_id, False))
+        self.assertEqual(ac.enter(code)[0], "ok")
+        self.assertTrue(reg.delete(inv_id))
+        self.assertEqual(ac.enter(code)[0], "expired")
+        self.assertTrue(reg.load()[inv_id]["deleted"])  # 기록은 남겨 같은 id 를 다시 쓰지 않는다
+        self.assertFalse(reg.set_revoked("없는id", True))
+
     def test_daily_budget_resets_next_day(self):
         from agent import DailyBudget
         now = [1_800_000_000.0]

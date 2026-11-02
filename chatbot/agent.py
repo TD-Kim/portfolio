@@ -628,12 +628,14 @@ class AccessControl:
         clock: Callable[[], float] = time.time,
         signer: InviteSigner | None = None,
         labels: Callable[[], dict[str, str]] | None = None,
+        blocked: Callable[[], set[str]] | None = None,
     ):
         import threading
 
         self.codes = codes
         self.signer = signer
         self.labels = labels  # 짧은 코드 id -> 이름 (초대 목록에서)
+        self.blocked = blocked  # 관리자 페이지에서 막거나 지운 id (초대 목록에서)
         self.ttl = ttl_hours * 3600
         self.clock = clock
         self.first_used: dict[str, float] = {}
@@ -651,8 +653,14 @@ class AccessControl:
             names = {}
         return names.get(invite_id) or f"초대 {invite_id}"
 
+    def _is_blocked(self, invite_id: str) -> bool:
+        try:
+            return bool(self.blocked) and invite_id in self.blocked()
+        except Exception:  # 목록을 못 읽으면 막지 않는다 (Secrets 의 REVOKED_INVITES 는 그대로 적용)
+            return False
+
     def _resolve(self, code: str | None) -> tuple[InviteCode, str] | None:
-        """(InviteCode, 질문 수를 셀 때 쓰는 키)."""
+        """(InviteCode, 질문 수를 셀 때 쓰는 키). 막은 코드는 None."""
         if not code:
             return None
         if code in self.codes:
@@ -661,10 +669,12 @@ class AccessControl:
             return None
         found = self.signer.read(code)
         if found:
-            return found[0], "id:" + found[1]
+            return (None if self._is_blocked(found[1]) else (found[0], "id:" + found[1]))
         short = self.signer.read_short(code)
         if short:
             expires, invite_id, _ = short
+            if self._is_blocked(invite_id):
+                return None
             return InviteCode(self._short_label(invite_id), expires), "id:" + invite_id
         return None
 
@@ -976,13 +986,39 @@ class InviteRegistry:
     def labels(self) -> dict[str, str]:
         return {k: v.get("label", "") for k, v in self.load().items()}
 
+    def blocked(self) -> set[str]:
+        """막았거나 지운 초대 id. 챗봇은 이 코드로 들어오지 못한다."""
+        return {k for k, v in self.load().items() if v.get("revoked") or v.get("deleted")}
+
+    def _now(self) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.gmtime(self.clock() + 9 * 3600))
+
     def add(self, invite_id: str, label: str, expires: str) -> bool:
+        items = dict(self.load(force=True))
+        items[invite_id] = {"label": label, "expires": expires, "created": self._now()}
+        return self._save(items, f"invite: {label} ({invite_id})")
+
+    def set_revoked(self, invite_id: str, revoked: bool) -> bool:
+        """막기(True) / 다시 허용(False)."""
+        items = {k: dict(v) for k, v in self.load(force=True).items()}
+        if invite_id not in items:
+            return False
+        items[invite_id]["revoked"] = revoked
+        items[invite_id]["changed"] = self._now()
+        return self._save(items, f"invite: {'revoke' if revoked else 'restore'} {invite_id}")
+
+    def delete(self, invite_id: str) -> bool:
+        """목록에서 숨기고 코드도 막는다. 기록은 남겨서 다시 같은 id 를 쓰지 않게 한다."""
+        items = {k: dict(v) for k, v in self.load(force=True).items()}
+        if invite_id not in items:
+            return False
+        items[invite_id].update(deleted=True, revoked=True, changed=self._now())
+        return self._save(items, f"invite: delete {invite_id}")
+
+    def _save(self, items: dict[str, dict[str, Any]], message: str) -> bool:
         import base64
 
-        items = dict(self.load(force=True))
-        kst = time.strftime("%Y-%m-%d %H:%M", time.gmtime(self.clock() + 9 * 3600))
-        items[invite_id] = {"label": label, "expires": expires, "created": kst}
-        body = {"message": f"invite: {label} ({invite_id})", "branch": self.logger.branch,
+        body = {"message": message, "branch": self.logger.branch,
                 "content": base64.b64encode(json.dumps(items, ensure_ascii=False, indent=1).encode()).decode()}
         if self._sha:
             body["sha"] = self._sha
