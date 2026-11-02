@@ -33,6 +33,7 @@ from agent import (  # noqa: E402
     KEY_NAMES,
     MAX_USER_TURNS,
     ChatSession,
+    CodeQuota,
     DailyBudget,
     Profile,
     AccessControl,
@@ -53,6 +54,7 @@ INVITE_SECRET = os.environ.get("INVITE_SECRET", "")
 REVOKED_INVITES = os.environ.get("REVOKED_INVITES", "")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 DAILY_LIMIT = int(os.environ.get("DAILY_QUESTION_LIMIT", "200"))  # 서버 전체 하루 질문 수
+QUESTIONS_PER_CODE = int(os.environ.get("QUESTIONS_PER_CODE", "30"))  # 초대 코드 하나당 질문 수 (탭·기기 합산)
 MAX_CODE_TRIES = 5
 
 GREETING = """안녕하세요! 👋 저는 **김진용님의 포트폴리오 안내 에이전트**예요.
@@ -108,6 +110,11 @@ def get_agent(version: float):  # version 이 바뀌면 새로 만든다
 def get_access(raw: str, ttl: float, version: float, secret: str, revoked: str) -> AccessControl:
     # 모든 방문자가 함께 쓰는 '처음 쓴 시각' 기록. Secrets 가 바뀌면 인자가 바뀌어 새로 만든다.
     return AccessControl(parse_access_codes(raw), ttl_hours=ttl, signer=signer_from_env())
+
+
+@st.cache_resource
+def get_quota(limit: int, version: float) -> CodeQuota:  # 초대 코드별 질문 수 (모든 방문자가 함께 씀)
+    return CodeQuota(limit)
 
 
 @st.cache_resource
@@ -185,6 +192,7 @@ st.markdown(
 
 # ---- 초대 코드 확인: 링크의 ?code=... 또는 직접 입력
 access = get_access(ACCESS_CODES, CODE_TTL_HOURS, AGENT_VERSION, INVITE_SECRET, REVOKED_INVITES)
+quota = get_quota(QUESTIONS_PER_CODE, AGENT_VERSION)
 EXPIRED_TEXT = "⌛ 이 초대 코드는 사용 기간이 끝났어요. 다시 이용하고 싶으시면 아래 이메일로 연락 주세요."
 
 
@@ -265,21 +273,38 @@ if question and agent is not None:
     with st.chat_message("user"):
         st.markdown(question)
     with st.chat_message("assistant", avatar="🧑‍💻"):
+        quota_key = access.key(st.session_state["access_code"]) if access.enabled else None
         if access.enabled and not access.still_valid(st.session_state.get("access_code")):
             reply = "⌛ 초대 코드 사용 기간이 끝났어요. 페이지를 새로고침하면 안내가 나와요."
+        elif quota_key and not quota.take(quota_key):
+            reply = (
+                f"이 초대 코드로 물어볼 수 있는 질문 {QUESTIONS_PER_CODE}개를 모두 쓰셨어요. "
+                "더 궁금한 점은 이메일로 연락 주시거나, '메시지 남기기'가 필요하시면 진용님께 직접 연락 부탁드려요 🙏"
+            )
         elif not get_budget().take():
+            if quota_key:
+                quota.refund(quota_key)
             reply = "오늘 받을 수 있는 질문 수를 모두 채웠어요. 내일 다시 찾아 주시거나 이메일로 연락해 주세요 🙏"
         else:
+            before = chat.turn
             with st.spinner("자료를 찾아보는 중이에요…"):
                 reply = agent.answer(chat, question)
+            if quota_key and chat.turn == before:  # 답변에 실패한 질문은 세지 않는다
+                quota.refund(quota_key)
             if access.enabled:
-                print(f"[access] '{access.label(st.session_state.access_code)}' 질문 {chat.turn}번째", flush=True)
+                print(
+                    f"[access] '{access.label(st.session_state.access_code)}' 질문 "
+                    f"(남은 {quota.remaining(quota_key)}/{QUESTIONS_PER_CODE})",
+                    flush=True,
+                )
         st.markdown(reply)
     history.append(("assistant", reply))
     if clicked:
         st.rerun()  # 예시 버튼을 숨기기 위해 화면을 다시 그린다
 
 left = MAX_USER_TURNS - chat.turn
+if access.enabled and st.session_state.get("access_code"):
+    left = min(left, quota.remaining(access.key(st.session_state.access_code)))
 st.markdown(
     f'<p class="foot">AI가 자료를 바탕으로 답하지만 틀릴 수 있어요. 중요한 내용은 직접 확인해 주세요 · 남은 질문 {left}개</p>',
     unsafe_allow_html=True,

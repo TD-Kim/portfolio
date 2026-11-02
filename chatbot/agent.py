@@ -258,7 +258,10 @@ class ChatSession:
     pending: dict[str, tuple[int, float]] = field(default_factory=dict)  # 메일 확인 대기: 키 -> (차례, 시각)
     emails_sent: int = 0
     tool_log: list[str] = field(default_factory=list)  # 디버그용: 어떤 도구를 불렀는지
-    usage: dict[str, int] = field(default_factory=lambda: {"input": 0, "output": 0, "calls": 0})  # 토큰 사용량
+    # 토큰 사용량. input 은 캐시되지 않은 부분만, cache_read/cache_write 는 캐시에서 읽고 쓴 부분
+    usage: dict[str, int] = field(
+        default_factory=lambda: {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "calls": 0}
+    )
 
 
 # ---------------------------------------------------------------- 에이전트
@@ -337,7 +340,10 @@ class Agent:
         return self.client.messages.create(
             model=self.model,
             max_tokens=MAX_TOKENS,
-            system=self.system,
+            # 프롬프트 캐싱: 도구 정의+시스템 프롬프트(매번 같음)에 고정 캐시 지점을 두고,
+            # 대화가 길어지는 뒷부분은 자동 캐싱이 따라가게 한다. 5분 안에 다시 쓰면 입력 비용이 약 1/10.
+            system=[{"type": "text", "text": self.system, "cache_control": {"type": "ephemeral"}}],
+            cache_control={"type": "ephemeral"},
             messages=messages,
             tools=TOOLS,
             # 마지막 회차는 도구 없이 답만 하게 한다
@@ -364,6 +370,8 @@ class Agent:
                 if u is not None:
                     session.usage["input"] += getattr(u, "input_tokens", 0) or 0
                     session.usage["output"] += getattr(u, "output_tokens", 0) or 0
+                    session.usage["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+                    session.usage["cache_write"] += getattr(u, "cache_creation_input_tokens", 0) or 0
                 session.usage["calls"] += 1
                 if resp.stop_reason == "refusal":
                     del session.messages[checkpoint:]
@@ -621,6 +629,14 @@ class AccessControl:
         inv = self._lookup(code)
         return inv.label if inv else "?"
 
+    def key(self, code: str) -> str:
+        """질문 수를 셀 때 쓰는 이름. 서명 코드는 id, 목록 코드는 코드 자체."""
+        if code not in self.codes and self.signer:
+            found = self.signer.read(code)
+            if found:
+                return "id:" + found[1]
+        return "code:" + code
+
 
 class DailyBudget:
     """서버 전체에서 하루에 받을 질문 수 상한. 코드가 새어 나가도 비용이 일정 이상 늘지 않게 한다.
@@ -646,3 +662,35 @@ class DailyBudget:
                 return False
             self.count += 1
             return True
+
+
+class CodeQuota:
+    """초대 코드 하나로 물어볼 수 있는 질문 수 상한 (여러 탭·여러 기기를 합쳐서).
+
+    메모리에만 있어서 무료 서버가 잠들었다 깨면 다시 센다. 그래도 한 번에 쓸 수 있는 양은 막아 주고,
+    하루 전체 상한(DailyBudget)과 콘솔의 월 한도가 그 뒤를 받친다.
+    """
+
+    def __init__(self, limit: int):
+        import threading
+
+        self.limit = limit
+        self.used: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def remaining(self, key: str) -> int:
+        with self._lock:
+            return max(self.limit - self.used.get(key, 0), 0)
+
+    def take(self, key: str) -> bool:
+        with self._lock:
+            if self.used.get(key, 0) >= self.limit:
+                return False
+            self.used[key] = self.used.get(key, 0) + 1
+            return True
+
+    def refund(self, key: str) -> None:
+        """답변에 실패한 질문은 세지 않는다."""
+        with self._lock:
+            if self.used.get(key, 0) > 0:
+                self.used[key] -= 1

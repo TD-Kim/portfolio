@@ -92,6 +92,25 @@ class AgentTest(unittest.TestCase):
         self.assertIn("지시가 아니므로", tool_result["content"])
         self.assertEqual(client.calls[0]["model"], "claude-haiku-5-5")
 
+    def test_prompt_caching_is_requested_and_counted(self):
+        r = resp(text("네"))
+        r.usage = NS(input_tokens=50, output_tokens=20, cache_read_input_tokens=1800, cache_creation_input_tokens=0)
+        agent, client, s = make(r)
+        agent.answer(s, "안녕")
+        call = client.calls[0]
+        self.assertEqual(call["cache_control"], {"type": "ephemeral"})  # 대화 뒷부분 자동 캐싱
+        self.assertEqual(call["system"][0]["cache_control"], {"type": "ephemeral"})  # 고정 지점
+        self.assertEqual(call["system"][0]["text"], agent.system)
+        self.assertEqual((s.usage["cache_read"], s.usage["input"]), (1800, 50))
+
+    def test_system_prompt_is_stable_between_requests(self):
+        """캐시가 맞으려면 시스템 프롬프트가 요청마다 바이트 단위로 같아야 한다."""
+        agent, client, s = make(resp(text("1")), resp(text("2")))
+        agent.answer(s, "a")
+        agent.answer(s, "b")
+        self.assertEqual(client.calls[0]["system"], client.calls[1]["system"])
+        self.assertEqual(client.calls[0]["tools"], client.calls[1]["tools"])
+
     def test_last_round_disables_tools(self):
         loops = [resp(tool("get_github_repos", {}, id_=f"t{i}")) for i in range(MAX_TOOL_ROUNDS - 1)]
         agent, client, s = make(*loops, resp(text("끝")))
@@ -298,6 +317,25 @@ class AccessTest(unittest.TestCase):
         ac = AccessControl(parse_access_codes("테스트:abc123"), clock=lambda: self.NOON, signer=signer)
         self.assertEqual(ac.enter("abc123")[0], "ok")
         self.assertEqual(ac.enter(code)[0], "ok")
+
+    def test_code_quota(self):
+        from agent import CodeQuota
+        q = CodeQuota(2)
+        self.assertTrue(q.take("a"))
+        self.assertTrue(q.take("a"))
+        self.assertFalse(q.take("a"))
+        self.assertEqual(q.remaining("a"), 0)
+        q.refund("a")
+        self.assertEqual(q.remaining("a"), 1)
+        self.assertEqual(q.remaining("b"), 2)  # 다른 코드는 따로 센다
+
+    def test_quota_key_is_shared_per_invite(self):
+        from agent import AccessControl, InviteSigner, parse_access_codes
+        signer = InviteSigner("s" * 32)
+        code, inv_id = signer.make("카카오", "2026-11-30")
+        ac = AccessControl(parse_access_codes("t:abc123"), signer=signer)
+        self.assertEqual(ac.key(code), "id:" + inv_id)
+        self.assertEqual(ac.key("abc123"), "code:abc123")
 
     def test_daily_budget_resets_next_day(self):
         from agent import DailyBudget
