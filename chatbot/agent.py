@@ -401,6 +401,25 @@ class Agent:
         return any(line and line in text for line in self._prompt_lines)
 
 
+# 키를 찾는 순서. 클라우드 개발 환경처럼 ANTHROPIC_* 변수를 따로 쓰는 곳에서는
+# 전용 이름(CHATBOT_ANTHROPIC_API_KEY)을 쓰면 충돌하지 않는다.
+KEY_NAMES = ("CHATBOT_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
+
+
+def resolve_api_key() -> str | None:
+    for name in KEY_NAMES:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return None
+
+
 def build_agent(api_key: str | None = None) -> Agent:
-    client = anthropic.Anthropic(api_key=api_key, timeout=30.0, max_retries=1)
+    client = anthropic.Anthropic(
+        api_key=api_key or resolve_api_key(),
+        # 주변 환경의 ANTHROPIC_BASE_URL 을 따라가지 않고 항상 공식 API 로 보낸다
+        base_url=os.environ.get("CHATBOT_API_BASE_URL", "https://api.anthropic.com"),
+        timeout=30.0,
+        max_retries=1,
+    )
     return Agent(client, Profile.load(), mailer=smtp_mailer_from_env())

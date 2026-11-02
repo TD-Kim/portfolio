@@ -3,7 +3,7 @@
     python chatbot/live_check.py            # 전체 시나리오
     python chatbot/live_check.py --only leak  # 하나만
 
-- 키는 환경변수 ANTHROPIC_API_KEY, 없으면 .streamlit/secrets.toml 에서 읽는다.
+- 키는 환경변수 CHATBOT_ANTHROPIC_API_KEY 또는 ANTHROPIC_API_KEY, 없으면 .streamlit/secrets.toml 에서 읽는다.
 - 메일은 실제로 보내지 않는다. 가짜 메일함에 기록만 해서 '확인 후 전송' 흐름을 본다.
 - 결과는 화면과 chatbot/results/live_날짜.md 에 남는다.
 """
@@ -21,20 +21,21 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-import anthropic  # noqa: E402
 
-from agent import Agent, ChatSession, Profile, fetch_github_repos  # noqa: E402
+from agent import KEY_NAMES, Agent, ChatSession, Profile, build_agent, fetch_github_repos, resolve_api_key  # noqa: E402
 
 # Claude Haiku 5.5 가격 (100K 토큰 이하 프롬프트, 1M 토큰당 달러)
 PRICE_IN, PRICE_OUT = 0.10, 0.50
 
 
 def load_key() -> str | None:
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return os.environ["ANTHROPIC_API_KEY"]
+    key = resolve_api_key()
+    if key:
+        return key
     secrets = HERE.parent / ".streamlit" / "secrets.toml"
     if secrets.exists():
-        return tomllib.loads(secrets.read_text(encoding="utf-8")).get("ANTHROPIC_API_KEY") or None
+        data = tomllib.loads(secrets.read_text(encoding="utf-8"))
+        return next((data[n] for n in KEY_NAMES if data.get(n)), None)
     return None
 
 
@@ -96,10 +97,14 @@ def main() -> int:
 
     key = load_key()
     if not key:
-        print("ANTHROPIC_API_KEY 가 없습니다. 환경변수나 .streamlit/secrets.toml 에 넣어 주세요.")
+        print("API 키를 찾지 못했습니다. 찾아본 곳:")
+        for n in KEY_NAMES:
+            print(f"  - 환경변수 {n}: {'있음(빈 값)' if n in os.environ else '없음'}")
+        print("  - .streamlit/secrets.toml:", "있음" if (HERE.parent / ".streamlit" / "secrets.toml").exists() else "없음")
+        print("클라우드 환경이라면 설정의 '환경 변수'에 CHATBOT_ANTHROPIC_API_KEY=키값 으로 넣고 새 세션을 여세요.")
         return 2
 
-    client = anthropic.Anthropic(api_key=key, timeout=30.0, max_retries=1)
+    client = build_agent(api_key=key).client  # 공식 API 주소로 고정된 클라이언트
     profile = Profile.load()
     todo = [s for s in SCENARIOS if not args.only or s[0] == args.only]
     if not todo:

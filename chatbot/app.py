@@ -18,7 +18,7 @@ try:
 except Exception:  # secrets.toml 이 없으면 환경변수만 사용
     pass
 
-from agent import MAX_USER_TURNS, ChatSession, build_agent  # noqa: E402
+from agent import KEY_NAMES, MAX_USER_TURNS, ChatSession, build_agent, resolve_api_key  # noqa: E402
 
 st.set_page_config(page_title="김진용에게 질문하기", page_icon="💬", layout="centered")
 
@@ -82,10 +82,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+has_key = bool(resolve_api_key())
 agent = get_agent() if has_key else None
 if agent is None:
-    st.warning("ANTHROPIC_API_KEY 가 설정되지 않아 답변을 할 수 없어요. chatbot/README.md 를 참고해 설정해 주세요.")
+    st.warning(f"API 키({' 또는 '.join(KEY_NAMES)})가 설정되지 않아 답변을 할 수 없어요. chatbot/README.md 를 참고해 설정해 주세요.")
 
 if "chat" not in st.session_state:
     st.session_state.chat = ChatSession()
