@@ -509,5 +509,43 @@
       "Git Actions",
       "Jenkins"
     ]
-  }
+  },
+  "skillNotes": [
+    {
+      "skill": "Kubernetes",
+      "where": "병무청 디지털 플랫폼 개발",
+      "did": "kubectl 명령어로 서버 구성과 서버 정보를 확인하는 정도",
+      "level": "조회·확인 수준. 클러스터 구성, 배포 설정, 운영은 직접 하지 않음"
+    },
+    {
+      "skill": "Jenkins",
+      "where": "LMS(학습관리시스템) 개발",
+      "did": "Jenkins 서버 설치부터 빌드·배포 파이프라인 구성까지 직접 함",
+      "level": "구축"
+    },
+    {
+      "skill": "AWS",
+      "where": "AI TOP 100 대회(AWS Lightsail에 Docker로 챗봇 배포), 개인 공부·사이드 프로젝트",
+      "did": "대회와 개인 프로젝트에서 사용",
+      "level": "실무 프로젝트에서는 사용하지 않음"
+    },
+    {
+      "skill": "OAuth2.0",
+      "where": "LMS(학습관리시스템) 개발",
+      "did": "카카오, 네이버, 구글 소셜 로그인 연동",
+      "level": "구현"
+    },
+    {
+      "skill": "Oracle SQL 튜닝",
+      "where": "병무청 디지털 플랫폼 개발",
+      "did": "SQL 분석·튜닝으로 화면 조회 속도 개선",
+      "level": "개선. 정확한 수치는 없음(숫자로 말하지 않음)"
+    },
+    {
+      "skill": "DB 고가용성",
+      "where": "LMS(학습관리시스템) 개발",
+      "did": "MariaDB 복제(Replication) 방식으로 고가용성 환경 구성",
+      "level": "구축"
+    }
+  ]
 }

@@ -71,9 +71,10 @@ SECTIONS = {
     "contact": "연락처",
     "details": "경력기술서 (프로젝트별 개발환경·담당업무 원문)",
     "skill_table": "기술 분류표 (경력기술서)",
+    "notes": "본인 확인 메모 (기술별로 어디서, 어디까지 했는지)",
 }
 # 영역 이름 -> data.json 의 키
-_SECTION_KEYS = {"details": "careerDetails", "skill_table": "skillTable"}
+_SECTION_KEYS = {"details": "careerDetails", "skill_table": "skillTable", "notes": "skillNotes"}
 
 
 class Profile:
@@ -89,6 +90,8 @@ class Profile:
         self.entries.append(("skills", {"skills": data.get("skills", [])}))
         for item in data.get("careerDetails", []):
             self.entries.append(("details", item))
+        for item in data.get("skillNotes", []):
+            self.entries.append(("notes", item))
         if data.get("skillTable"):
             self.entries.append(("skill_table", data["skillTable"]))
 
@@ -109,6 +112,7 @@ class Profile:
             f"대표 프로젝트: {projects}\n"
             f"공부·도전 중: {learning}\n"
             "경력기술서: 프로젝트별 개발환경(env)과 담당업무(duties) 원문이 있음 (영역 details)\n"
+            "본인 확인 메모: 기술별로 어디서, 어디까지 했는지 진용님이 직접 확인한 내용 (영역 notes)\n"
             "(위는 목록일 뿐입니다. 세부 내용은 도구로 확인하세요.)"
         )
 
@@ -127,6 +131,8 @@ class Profile:
         for kind, item in self.entries:
             text = json.dumps(item, ensure_ascii=False).lower()
             score = sum(text.count(t) for t in terms)
+            if score and kind == "notes":
+                score += 100  # 본인 확인 메모가 가장 믿을 만한 근거라 맨 앞에 둔다
             if score:
                 scored.append((score, kind, item))
         scored.sort(key=lambda x: -x[0])
@@ -215,7 +221,8 @@ TOOLS = [
         "name": "get_profile_section",
         "description": "특정 영역 전체를 가져온다. about=소개, projects=대표 프로젝트, experience=회사 경력, "
         "credentials=학력·자격·수상, learning=공부·도전 중인 것, skills=기술 스택, contact=연락처, "
-        "details=경력기술서(프로젝트 8개의 개발환경과 담당업무 원문), skill_table=기술 분류표.",
+        "details=경력기술서(프로젝트 8개의 개발환경과 담당업무 원문), skill_table=기술 분류표, "
+        "notes=본인 확인 메모(기술별로 어디서, 어디까지).",
         "input_schema": _schema({"section": {"type": "string", "enum": list(SECTIONS)}}, ["section"]),
         "strict": True,
     },
