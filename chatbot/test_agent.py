@@ -70,7 +70,7 @@ def make(*responses, mailer=None):
 class ProfileTest(unittest.TestCase):
     def test_search_english_and_korean(self):
         p = Profile.load()
-        self.assertTrue(any("병무청" in h["title"] for h in p.search("병무청")))
+        self.assertTrue(any("병무청" in h.get("title", "") for h in p.search("병무청")))
         self.assertTrue(p.search("쿠버네티스"))  # 한글 -> Kubernetes
         self.assertEqual(p.search("존재하지않는단어"), [])
 
