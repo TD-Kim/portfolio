@@ -89,6 +89,17 @@ class ProfileTest(unittest.TestCase):
         # 사이트에 없던 프로젝트도 찾는다
         self.assertTrue(any("정관장" in h.get("title", "") for h in p.search("POS")))
 
+    def test_owner_notes_come_first(self):
+        p = Profile.load()
+        for q, skill in [("Kubernetes", "Kubernetes"), ("쿠버네티스", "Kubernetes"), ("Jenkins", "Jenkins"),
+                         ("AWS", "AWS"), ("소셜 로그인", "OAuth2.0"), ("고가용성", "DB 고가용성")]:
+            self.assertEqual(p.search(q)[0].get("skill"), skill, q)
+        k8s = p.search("Kubernetes")[0]
+        self.assertIn("kubectl", k8s["did"])
+        self.assertIn("직접 하지 않음", k8s["level"])
+        self.assertIn("수치는 없음", p.search("SQL 튜닝")[0]["level"])
+        self.assertEqual(len(p.section("notes")), 6)
+
     def test_details_section(self):
         p = Profile.load()
         self.assertEqual(len(p.section("details")), 8)
