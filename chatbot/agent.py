@@ -57,7 +57,7 @@ ALIASES = {
     "도커": "docker", "쿠버네티스": "kubernetes", "리액트": "react", "파이썬": "python",
     "깃허브": "github", "엔진엑스": "nginx", "젠킨스": "jenkins", "앤서블": "ansible",
     "마이바티스": "mybatis", "넥사크로": "nexacro", "웹스퀘어": "websquare",
-    "네오포제이": "neo4j", "그래프": "graphrag", "온톨로지": "ontology", "에이전트": "agent",
+    "클로드코드": "claude code", "클로드": "claude", "네오포제이": "neo4j", "그래프": "graphrag", "온톨로지": "ontology", "에이전트": "agent",
     "대회": "ai top 100", "자격증": "자격", "학교": "대학교", "석사": "석사", "aws": "aws",
 }
 
