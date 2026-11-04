@@ -92,13 +92,14 @@ class ProfileTest(unittest.TestCase):
     def test_owner_notes_come_first(self):
         p = Profile.load()
         for q, skill in [("Kubernetes", "Kubernetes"), ("쿠버네티스", "Kubernetes"), ("Jenkins", "Jenkins"),
-                         ("AWS", "AWS"), ("소셜 로그인", "OAuth2.0"), ("고가용성", "DB 고가용성")]:
+                         ("AWS", "AWS"), ("소셜 로그인", "OAuth2.0"), ("고가용성", "DB 고가용성"),
+                         ("Claude Code", "Claude Code"), ("클로드 코드", "Claude Code"), ("클로드코드", "Claude Code")]:
             self.assertEqual(p.search(q)[0].get("skill"), skill, q)
         k8s = p.search("Kubernetes")[0]
         self.assertIn("kubectl", k8s["did"])
         self.assertIn("직접 하지 않음", k8s["level"])
         self.assertIn("수치는 없음", p.search("SQL 튜닝")[0]["level"])
-        self.assertEqual(len(p.section("notes")), 6)
+        self.assertEqual(len(p.section("notes")), 7)
 
     def test_details_section(self):
         p = Profile.load()

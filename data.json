@@ -52,7 +52,8 @@
     "AWS",
     "Linux",
     "Ansible",
-    "Python"
+    "Python",
+    "Claude Code"
   ],
   "projects": [
     {
@@ -198,7 +199,7 @@
   "learning": [
     {
       "title": "AI TOP 100 (2026) 예선 참가",
-      "status": "본선 결과 발표 대기",
+      "status": "예선 완주",
       "desc": "5시간 개인전으로 카카오톡 채널에서 동작하는 AI 상담 에이전트를 만들어 배포했습니다. 프롬프트가 뚫려도 피해가 없도록 주문·취소 2단계 확인, 고객 키 서버 주입, 입력 검증, 호출 한도를 코드로 막았고, 공격 시나리오 20개 레드팀 테스트를 모두 통과했습니다.",
       "tags": [
         "Claude API",
@@ -508,6 +509,9 @@
       "Docker",
       "Git Actions",
       "Jenkins"
+    ],
+    "AI 개발 도구": [
+      "Claude Code"
     ]
   },
   "skillNotes": [
@@ -546,6 +550,12 @@
       "where": "LMS(학습관리시스템) 개발",
       "did": "MariaDB 복제(Replication) 방식으로 고가용성 환경 구성",
       "level": "구축"
+    },
+    {
+      "skill": "Claude Code",
+      "where": "이 포트폴리오 사이트와 챗봇, AI TOP 100 대회 준비(인터뷰 분석 도구)",
+      "did": "Claude Code에 작업을 맡기고 결과를 검토·테스트해 반영하는 방식으로 사이트, 챗봇(Streamlit·Claude API), 배포까지 진행. 프로젝트 스킬(UI·UX 점검 등)도 설정해서 씀",
+      "level": "개인 프로젝트에서 일상적으로 활용. 실무 프로젝트에서 쓴 경험은 자료에 없음"
     }
   ]
 }
