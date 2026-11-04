@@ -567,6 +567,84 @@
       "where": "이 포트폴리오 사이트와 챗봇, AI TOP 100 대회 준비(인터뷰 분석 도구)",
       "did": "Claude Code에 작업을 맡기고 결과를 검토·테스트해 반영하는 방식으로 사이트, 챗봇(Streamlit·Claude API), 배포까지 진행. 프로젝트 스킬(UI·UX 점검 등)도 설정해서 씀",
       "level": "개인 프로젝트에서 일상적으로 활용. 실무 프로젝트에서 쓴 경험은 자료에 없음"
+    },
+    {
+      "skill": "Java·Spring Boot",
+      "where": "병무청 디지털 플랫폼 개발, LMS(학습관리시스템) 개발, 기업 홈페이지 구축",
+      "did": "LMS는 단독으로 프로젝트 구조부터 설계·구축. 병무청에서는 기존 Legacy Spring 소스를 Spring Boot 구조로 전환·리팩토링하고, C Batch를 Java로 옮기면서 Spring Batch(Job·Step) 기반 배치와 일반 Java 배치 프로그램을 개발",
+      "level": "신규 설계·구축, 레거시 전환, 배치 개발까지 직접 함"
+    },
+    {
+      "skill": "Spring Security·JWT",
+      "where": "LMS(학습관리시스템) 개발",
+      "did": "SecurityFilterChain·필터·예외 처리 등 인증 구조를 직접 설계하고, Access·Refresh 토큰 발급·검증·재발급, 관리자·강사·수강생 권한(Role)별 접근 제어, PASS 본인인증 연동을 구현",
+      "level": "인증·인가 구조 설계부터 구현까지 직접 함"
+    },
+    {
+      "skill": "Oracle·MyBatis",
+      "where": "병무청 디지털 플랫폼 개발, K-water 업무시스템 통합 구축, 정관장 POS 시스템 유지보수",
+      "did": "조인·서브쿼리·분석함수를 쓰는 복잡한 업무 쿼리 작성, 실행계획을 보고 인덱스·쿼리 구조를 바꾸는 튜닝, PL/SQL 프로시저·패키지 작성. 정관장에서는 AS-IS→TO-BE 데이터 마이그레이션과 정합성 검증",
+      "level": "쿼리 작성·튜닝·프로시저까지 직접 함. 튜닝 성과의 정확한 수치는 없음"
+    },
+    {
+      "skill": "MariaDB",
+      "where": "LMS(학습관리시스템) 개발, 기업 홈페이지 구축",
+      "did": "DB 설계와 쿼리 최적화, LMS에서는 복제(Replication)로 고가용성 환경 구성",
+      "level": "설계·구축"
+    },
+    {
+      "skill": "PostgreSQL",
+      "where": "국가정보자원관리원 클라우드 운영 자동화 개발",
+      "did": "예방점검 결과를 저장하는 운영 자동화 DB를 설계하고 쿼리 개발",
+      "level": "DB 설계부터 개발까지 직접 함"
+    },
+    {
+      "skill": "Nexacro·WebSquare",
+      "where": "병무청 디지털 플랫폼 개발(Nexacro), K-water 업무시스템 통합 구축(WebSquare)",
+      "did": "K-water에서 WebSquare로 분양·계약 화면을 새로 설계·개발. 병무청에서 Nexacro 기존 화면을 분석해 기능을 수정·개선하고 신규 화면도 개발",
+      "level": "신규 화면 개발과 기존 화면 수정 모두 함"
+    },
+    {
+      "skill": "React",
+      "where": "LMS(학습관리시스템) 개발, 기업 홈페이지 구축",
+      "did": "라우팅, 상태 관리, API 연동까지 프론트엔드 화면 전체를 직접 개발 (React Hooks, Sass)",
+      "level": "프론트엔드 전체 직접 개발"
+    },
+    {
+      "skill": "Docker",
+      "where": "LMS(학습관리시스템) 개발, 기업 홈페이지 구축",
+      "did": "Spring Boot·React 앱의 Dockerfile을 직접 작성하고, docker-compose로 여러 컨테이너를 묶어 구성. Jenkins·GitHub Actions에서 이미지 빌드부터 서버 배포까지 자동화",
+      "level": "이미지 작성·구성·배포 자동화까지 직접 함"
+    },
+    {
+      "skill": "Nginx",
+      "where": "LMS(학습관리시스템) 개발, 기업 홈페이지 구축",
+      "did": "리버스 프록시, upstream 로드밸런싱, SSL 인증서 적용(HTTPS)을 설정하고, LMS에서는 nginx-rtmp 모듈로 동영상 스트리밍 서버를 구성",
+      "level": "설정·구축·운영"
+    },
+    {
+      "skill": "GitHub Actions",
+      "where": "LMS(학습관리시스템) 개발, 기업 홈페이지 구축",
+      "did": "빌드·테스트·배포 워크플로(yml)를 처음부터 직접 작성",
+      "level": "직접 구축"
+    },
+    {
+      "skill": "Linux",
+      "where": "LMS(학습관리시스템) 개발 (Red Hat 서버)",
+      "did": "서버 초기 세팅(패키지·계정·권한·방화벽), NFS 구성, inotify+FFmpeg 동영상 변환 같은 셸 스크립트 작성, 서버 로그 확인과 장애 분석",
+      "level": "서버 세팅부터 운영·장애 대응까지 직접 함"
+    },
+    {
+      "skill": "Ansible",
+      "where": "국가정보자원관리원 클라우드 운영 자동화 개발",
+      "did": "서버 상태를 점검하는 Playbook을 직접 작성하고, 웹 포털(Spring)에서 Ansible을 실행해 결과를 DB에 저장, 스케줄로 주기 실행하고 결과를 엑셀 리포트로 추출",
+      "level": "점검 자동화 구현"
+    },
+    {
+      "skill": "Python",
+      "where": "헬스케어 머천다이징 솔루션(교육과정), AI TOP 100 대회, 이 포트폴리오 챗봇, GraphRAG 공부",
+      "did": "face_recognition으로 안면인식 출퇴근 기능 구현, 카카오톡 AI 상담 에이전트와 Streamlit 챗봇(Claude API) 개발, Neo4j·LangGraph·RAGAS로 GraphRAG 실습",
+      "level": "교육과정·대회·개인 프로젝트에서 사용. 회사 실무 프로젝트에서 쓴 경험은 없음"
     }
   ]
 }

@@ -99,7 +99,22 @@ class ProfileTest(unittest.TestCase):
         self.assertIn("kubectl", k8s["did"])
         self.assertIn("직접 하지 않음", k8s["level"])
         self.assertIn("수치는 없음", p.search("SQL 튜닝")[0]["level"])
-        self.assertEqual(len(p.section("notes")), 7)
+        self.assertEqual(len(p.section("notes")), 20)
+
+    def test_every_listed_skill_has_a_note(self):
+        """사이트 기술 스택의 모든 기술은 검색하면 본인 확인 메모가 맨 앞에 나와야 한다."""
+        p = Profile.load()
+        for skill in p.data["skills"]:
+            top = p.search(skill)[0]
+            self.assertIn("skill", top, skill)
+            self.assertIn(skill.lower(), top["skill"].lower(), skill)
+        # 프로젝트 이름으로 물으면 메모가 아니라 그 프로젝트가 맨 앞에 와야 한다.
+        self.assertIn("병무청", p.search("병무청 프로젝트에서 맡은 일은?")[0]["title"])
+        self.assertIn("정관장", p.search("POS")[0]["title"])  # PostgreSQL 메모에 걸리지 않음
+        self.assertEqual(p.search("Docker는 어디까지 해봤어요?")[0]["skill"], "Docker")  # 조사 붙은 말
+        for q, skill in [("스프링 시큐리티", "Spring Security·JWT"), ("도커", "Docker"), ("리눅스", "Linux"),
+                         ("마리아DB", "MariaDB"), ("깃허브 액션", "GitHub Actions"), ("넥사크로", "Nexacro·WebSquare")]:
+            self.assertEqual(p.search(q)[0]["skill"], skill, q)
 
     def test_details_section(self):
         p = Profile.load()
