@@ -38,6 +38,7 @@ from agent import (  # noqa: E402
     Profile,
     AccessControl,
     build_agent,
+    fix_bold,
     parse_access_codes,
     resolve_api_key,
     InviteRegistry,
@@ -401,12 +402,13 @@ if access.enabled and st.session_state.get("access_code"):
     chat.invite_label = access.label(st.session_state.access_code)  # 메시지 메일에 함께 적는다
 history: list[tuple[str, str]] = st.session_state.history
 
+USER_AVATAR = "🙋"  # 기본 사람 아이콘은 빨간 배경이라 이모지로 바꾼다
 with st.chat_message("assistant", avatar="🧑‍💻"):
     st.markdown(GREETING)
 
 for role, text in history:
-    with st.chat_message(role, avatar="🧑‍💻" if role == "assistant" else None):
-        st.markdown(text)
+    with st.chat_message(role, avatar="🧑‍💻" if role == "assistant" else USER_AVATAR):
+        st.markdown(fix_bold(text) if role == "assistant" else text)
 
 clicked = None
 if not history:
@@ -415,12 +417,13 @@ if not history:
         if cols[i % 2].button(q, key=f"ex{i}", disabled=agent is None):
             clicked = q
 
-typed = st.chat_input("질문을 입력하세요 (예: Spring Boot 경험 알려줘)", disabled=agent is None, max_chars=1000)
+# 안내 문구가 두 줄로 넘치면 휴대폰에서 입력칸이 커지고 버튼이 아래로 밀려서, 한 줄에 들어가게 짧게 둔다
+typed = st.chat_input("질문을 입력하세요", disabled=agent is None, max_chars=1000)
 question = typed or clicked
 
 if question and agent is not None:
     history.append(("user", question))
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=USER_AVATAR):
         st.markdown(question)
     with st.chat_message("assistant", avatar="🧑‍💻"):
         quota_key = access.key(st.session_state["access_code"]) if access.enabled else None
@@ -453,7 +456,7 @@ if question and agent is not None:
                     f"(남은 {quota.remaining(quota_key)}/{QUESTIONS_PER_CODE})",
                     flush=True,
                 )
-        st.markdown(reply)
+        st.markdown(fix_bold(reply))
     history.append(("assistant", reply))
     if clicked:
         st.rerun()  # 예시 버튼을 숨기기 위해 화면을 다시 그린다

@@ -902,6 +902,33 @@ _PHONE_RE = re.compile(
 )
 
 
+_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
+_HAIR = "\u200a"  # 아주 좁은 공백. 마크다운 규칙상 '공백'으로 쳐서 굵게가 적용된다
+
+
+def fix_bold(text: str) -> str:
+    """'**정보처리기사(2020)**와' 처럼 괄호 뒤에 한글이 바로 붙으면 마크다운이 굵게로 읽지 않아
+    별표가 그대로 보인다. 그런 자리에만 아주 좁은 공백을 넣어 굵게가 되게 한다."""
+    import unicodedata
+
+    def punct(ch: str) -> bool:
+        return unicodedata.category(ch)[0] in "PS"
+
+    def word(ch: str) -> bool:
+        return bool(ch) and not ch.isspace() and not punct(ch)
+
+    def fix(m: re.Match[str]) -> str:
+        inner, before, after = m.group(1), text[m.start() - 1 : m.start()], text[m.end() : m.end() + 1]
+        out = m.group(0)
+        if punct(inner[-1]) and word(after):
+            out += _HAIR
+        if punct(inner[0]) and word(before):
+            out = _HAIR + out
+        return out
+
+    return _BOLD.sub(fix, text)
+
+
 def mask_contacts(text: str) -> str:
     """기록에 남기기 전에 이메일 주소와 전화번호를 가린다."""
     text = _EMAIL_RE.sub("[이메일 가림]", text or "")

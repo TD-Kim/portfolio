@@ -698,3 +698,17 @@ class LoggingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FixBoldTest(unittest.TestCase):
+    def test_bold_before_korean_after_parenthesis(self):
+        from agent import fix_bold
+
+        self.assertEqual(fix_bold("**정보처리기사(2020)**와"), "**정보처리기사(2020)** 와")
+        self.assertEqual(fix_bold("는**(주)회사**"), "는 **(주)회사**")
+
+    def test_leaves_normal_text_alone(self):
+        from agent import fix_bold
+
+        for t in ["**LMS** 개발", "**Spring Boot**로", "2*3**4", "**끝.**\n다음", "보통 문장"]:
+            self.assertEqual(fix_bold(t), t)
