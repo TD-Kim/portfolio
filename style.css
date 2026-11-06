@@ -207,6 +207,7 @@ body::before {
 }
 .contact-links { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
 
+.footer .visit-note { margin-top: 6px; font-size: 0.72rem; }
 .footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 32px 16px; border-top: 1px solid var(--border); }
 
 /* ---------- responsive ---------- */
