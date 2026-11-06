@@ -1,13 +1,8 @@
 (async () => {
   // 사이트와 챗봇이 같은 data.json 을 읽습니다.
   const D = await fetch("data.json").then((r) => r.json());
-  // 관리자 화면은 비밀값이 필요해서 챗봇 서버에 있다. 포트폴리오 주소?admin 으로 와도 그쪽으로 보낸다.
-  if (new URLSearchParams(location.search).has("admin")) {
-    const to = new URL(D.chatbotUrl);
-    to.search = "?admin";
-    location.replace(to.href);
-    return;
-  }
+  // ?admin 은 index.html 맨 위에서 화면을 그리기 전에 챗봇 관리자 페이지로 보낸다. 여기서는 아무것도 하지 않는다.
+  if (new URLSearchParams(location.search).has("admin")) return;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
