@@ -38,6 +38,7 @@ from agent import (  # noqa: E402
     Profile,
     AccessControl,
     build_agent,
+    fix_bold,
     parse_access_codes,
     resolve_api_key,
     InviteRegistry,
@@ -184,7 +185,7 @@ if "admin" in st.query_params:
                 st.error("비밀번호가 맞지 않아요.")
         st.stop()
 
-    tab_invite, tab_logs, tab_mail = st.tabs(["🔗 초대 링크", "🗂️ 대화 기록", "📧 메일"])
+    tab_invite, tab_logs, tab_visits, tab_mail = st.tabs(["🔗 초대 링크", "🗂️ 대화 기록", "📈 방문 기록", "📧 메일"])
     with tab_invite:
         site = PORTFOLIO_URL or Profile.load().data.get("siteUrl", "")
         chat_url = Profile.load().data.get("chatbotUrl", "")
@@ -291,6 +292,62 @@ if "admin" in st.query_params:
                 with st.container(border=True):
                     st.markdown(conv_log.read(pick))
                 st.caption(f"GitHub 앱의 `{conv_log.repo}` 저장소에서도 같은 파일을 볼 수 있어요.")
+
+    with tab_visits:
+        import datetime as _dt
+
+        import visits as _visits
+
+        conv_log = get_logger(AGENT_VERSION, *LOG_ARGS)
+        gc_token = os.environ.get("GOATCOUNTER_TOKEN", "").strip()
+        st.markdown("##### 오늘 (실시간)")
+        if not gc_token:
+            st.info("Secrets 에 `GOATCOUNTER_TOKEN` 을 넣으면 오늘 방문이 여기에 바로 보여요. 지난 기록은 아래에서 볼 수 있어요.")
+        else:
+            if st.button("오늘 방문 새로고침", use_container_width=True):
+                st.session_state.pop("visits_today", None)
+            if "visits_today" not in st.session_state:
+                today = _dt.datetime.now(_visits.KST).date()
+                registry = get_registry(AGENT_VERSION, *LOG_ARGS)
+                try:
+                    labels = registry.labels() if registry else {}
+                except Exception:
+                    labels = {}
+                gc = _visits.GoatCounter(os.environ.get("GOATCOUNTER_SITE", "td-kim").strip() or "td-kim", gc_token)
+                with st.spinner("GoatCounter 에서 불러오는 중…"):
+                    try:
+                        text = _visits.report(gc, today, labels) or f"{today} 아직 방문이 없어요."
+                    except Exception as e:  # 토큰 오류·네트워크 문제여도 관리자 화면은 열려야 한다
+                        code = getattr(e, "code", None)
+                        why = "토큰을 확인해 주세요." if code in (401, 403) else "잠시 뒤 새로고침해 주세요."
+                        text = f"불러오지 못했어요 ({'HTTP ' + str(code) if code else type(e).__name__}). {why}"
+                st.session_state.visits_today = (text, _dt.datetime.now(_visits.KST).strftime("%H:%M"))
+            text, at = st.session_state.visits_today
+            with st.container(border=True):
+                st.markdown(text)
+            st.caption(f"{at} 기준 · GoatCounter 는 몇 분 늦게 반영될 수 있어요.")
+
+        st.markdown("##### 지난 기록")
+        if conv_log is None:
+            st.info("Secrets 에 `LOG_GITHUB_TOKEN` 과 `LOG_REPO` 를 넣으면 저장된 방문 기록이 여기에 보여요.")
+        else:
+            if st.button("지난 기록 새로고침", use_container_width=True):
+                st.session_state.pop("visit_paths", None)
+            if "visit_paths" not in st.session_state:
+                with st.spinner("기록을 불러오는 중…"):
+                    st.session_state.visit_paths = conv_log.recent(months=3, limit=90, prefix="visits/")
+            vpaths = st.session_state.visit_paths
+            if not vpaths:
+                st.caption("저장된 방문 기록이 아직 없어요. 매일 00:17 에 전날 기록이 저장돼요.")
+            else:
+                vpick = st.selectbox(
+                    f"저장된 날 {len(vpaths)}일 (최신순)",
+                    vpaths,
+                    format_func=lambda p: p.removeprefix("visits/").removesuffix(".md").replace("/", "-"),
+                )
+                with st.container(border=True):
+                    st.markdown(conv_log.read(vpick))
+            st.caption("방문이 없는 날은 파일이 없어요. 채용 앱 링크 끝에 `?ref=saramin` 처럼 붙이면 들어온 경로가 앱 이름으로 나와요.")
 
     with tab_mail:
         mailer = smtp_mailer_from_env()  # 매번 Secrets 를 다시 읽는다
@@ -401,12 +458,13 @@ if access.enabled and st.session_state.get("access_code"):
     chat.invite_label = access.label(st.session_state.access_code)  # 메시지 메일에 함께 적는다
 history: list[tuple[str, str]] = st.session_state.history
 
+USER_AVATAR = "🙋"  # 기본 사람 아이콘은 빨간 배경이라 이모지로 바꾼다
 with st.chat_message("assistant", avatar="🧑‍💻"):
     st.markdown(GREETING)
 
 for role, text in history:
-    with st.chat_message(role, avatar="🧑‍💻" if role == "assistant" else None):
-        st.markdown(text)
+    with st.chat_message(role, avatar="🧑‍💻" if role == "assistant" else USER_AVATAR):
+        st.markdown(fix_bold(text) if role == "assistant" else text)
 
 clicked = None
 if not history:
@@ -415,12 +473,13 @@ if not history:
         if cols[i % 2].button(q, key=f"ex{i}", disabled=agent is None):
             clicked = q
 
-typed = st.chat_input("질문을 입력하세요 (예: Spring Boot 경험 알려줘)", disabled=agent is None, max_chars=1000)
+# 안내 문구가 두 줄로 넘치면 휴대폰에서 입력칸이 커지고 버튼이 아래로 밀려서, 한 줄에 들어가게 짧게 둔다
+typed = st.chat_input("질문을 입력하세요", disabled=agent is None, max_chars=1000)
 question = typed or clicked
 
 if question and agent is not None:
     history.append(("user", question))
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=USER_AVATAR):
         st.markdown(question)
     with st.chat_message("assistant", avatar="🧑‍💻"):
         quota_key = access.key(st.session_state["access_code"]) if access.enabled else None
@@ -453,7 +512,7 @@ if question and agent is not None:
                     f"(남은 {quota.remaining(quota_key)}/{QUESTIONS_PER_CODE})",
                     flush=True,
                 )
-        st.markdown(reply)
+        st.markdown(fix_bold(reply))
     history.append(("assistant", reply))
     if clicked:
         st.rerun()  # 예시 버튼을 숨기기 위해 화면을 다시 그린다

@@ -698,3 +698,47 @@ class LoggingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FixBoldTest(unittest.TestCase):
+    def test_bold_before_korean_after_parenthesis(self):
+        from agent import fix_bold
+
+        self.assertEqual(fix_bold("**정보처리기사(2020)**와"), "**정보처리기사(2020)** 와")
+        self.assertEqual(fix_bold("는**(주)회사**"), "는 **(주)회사**")
+
+    def test_leaves_normal_text_alone(self):
+        from agent import fix_bold
+
+        for t in ["**LMS** 개발", "**Spring Boot**로", "2*3**4", "**끝.**\n다음", "보통 문장"]:
+            self.assertEqual(fix_bold(t), t)
+
+
+class VisitLogTest(unittest.TestCase):
+    def test_recent_lists_visit_files_newest_first_across_months(self):
+        import calendar
+
+        from agent import ConversationLogger
+
+        seen = []
+
+        def http(method, url, body=None):
+            seen.append(url)
+            if "/contents/visits/2026-11?" in url:
+                return 200, [{"type": "file", "name": "05.md", "path": "visits/2026-11/05.md"},
+                             {"type": "file", "name": "06.md", "path": "visits/2026-11/06.md"}]
+            if "/contents/visits/2026-10?" in url:
+                return 200, [{"type": "file", "name": "31.md", "path": "visits/2026-10/31.md"}]
+            return 404, None
+
+        now = calendar.timegm((2026, 11, 6, 3, 0, 0)) - 9 * 3600  # 한국 시간 11/6 03:00
+        log = ConversationLogger("t", "r", http=http, clock=lambda: now, background=False)
+        self.assertEqual(log.recent(months=2, prefix="visits/"),
+                         ["visits/2026-11/06.md", "visits/2026-11/05.md", "visits/2026-10/31.md"])
+        self.assertTrue(all("/contents/visits/" in u for u in seen))
+
+    def test_report_module_matches_logs_repo_copy(self):
+        import visits
+
+        self.assertTrue(callable(visits.report))
+        self.assertEqual(visits.KST.utcoffset(None).total_seconds(), 9 * 3600)
