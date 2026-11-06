@@ -224,7 +224,8 @@
     track({ path: id ? `chat-open/${id}` : "chat-open", title: "챗봇 열기", event: true });
     go.href = chatUrlFor(code);
     openDialog(wake, go);
-    wakeTimer = setTimeout(() => (location.href = go.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
+    // 안내는 기다리게 하려는 게 아니라 다음 화면이 뜰 때까지만 보인다. 그려질 틈만 주고 바로 이동한다
+    wakeTimer = setTimeout(() => (location.href = go.href), 50);
   };
   const gateError = $("[data-gate-error]");
   $$("[data-ask]").forEach((b) =>
@@ -251,6 +252,8 @@
     openChat();
   });
   $$("[data-wake-cancel], [data-gate-close]").forEach((b) => b.addEventListener("click", closeAll));
+  // 챗봇에서 뒤로 가기로 돌아오면 브라우저가 이전 화면을 그대로 보여 주므로, 안내가 남아 있지 않게 닫는다
+  addEventListener("pageshow", (e) => { if (e.persisted && !wake.hidden) closeAll(); });
   addEventListener("keydown", (e) => {
     const d = [gate, wake].find((x) => !x.hidden);
     if (!d) return;
