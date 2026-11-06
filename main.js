@@ -136,6 +136,50 @@
     code = loadCode();
   }
 
+  /* ---------- 방문 통계 (GoatCounter) ---------- */
+  // 코드 자체는 보내지 않는다. 짧은 코드의 앞 16비트(초대 번호, 예: 2ea9)만 보내고,
+  // 번호와 받은 사람 이름의 연결은 비공개 기록 저장소의 invites.json 에만 있다.
+  const inviteIdOf = (c) => {
+    try {
+      const short = normShort(c);
+      if (short) {
+        let n = 0n;
+        for (const ch of short) n = (n << 5n) | BigInt(B32.indexOf(ch));
+        return (n >> 44n).toString(16).padStart(4, "0");
+      }
+      const parts = String(c).split(".");
+      if (parts.length === 3 && parts[0] === "i1") {
+        const json = new TextDecoder().decode(
+          Uint8Array.from(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0))
+        );
+        const id = JSON.parse(json).n;
+        return /^[0-9a-f]{4,12}$/.test(id) ? id : null;
+      }
+    } catch {}
+    return null;
+  };
+  const gcQueue = [];
+  const track = (opts) => {
+    const gc = window.goatcounter;
+    if (gc && gc.count) {
+      try { gc.count(opts); } catch {}
+    } else gcQueue.push(opts);
+  };
+  $("#gc-script")?.addEventListener("load", () => gcQueue.splice(0).forEach(track));
+  track({ path: location.pathname }); // 주소에서 ?code= 를 지운 뒤라 코드가 통계에 남지 않는다
+  const visitId = code && inviteIdOf(code);
+  if (visitId) {
+    try {
+      // 같은 탭에서 새로고침할 때마다 세지 않게 한 번만
+      if (!sessionStorage.getItem("portfolio-invite-seen")) {
+        sessionStorage.setItem("portfolio-invite-seen", "1");
+        track({ path: `invite/${visitId}`, title: "초대 링크로 방문", event: true });
+      }
+    } catch {
+      track({ path: `invite/${visitId}`, title: "초대 링크로 방문", event: true });
+    }
+  }
+
   const wake = $(".wake:not(.gate)");
   const go = $("[data-wake-go]");
   const gate = $(".gate");
@@ -167,6 +211,8 @@
     opener = null;
   };
   const openChat = () => {
+    const id = code && inviteIdOf(code);
+    track({ path: id ? `chat-open/${id}` : "chat-open", title: "챗봇 열기", event: true });
     go.href = chatUrlFor(code);
     openDialog(wake, go);
     wakeTimer = setTimeout(() => (location.href = go.href), 2500); // 안내를 잠깐 보여 준 뒤 이동
