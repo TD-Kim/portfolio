@@ -166,7 +166,10 @@
     } else gcQueue.push(opts);
   };
   $("#gc-script")?.addEventListener("load", () => gcQueue.splice(0).forEach(track));
-  track({ path: location.pathname }); // 주소에서 ?code= 를 지운 뒤라 코드가 통계에 남지 않는다
+  // 주소에서 ?code= 를 지운 뒤라 코드가 통계에 남지 않는다. 채용 앱 안에서 열면 출처가 비는 일이 많아서
+  // 링크에 ?ref=saramin 처럼 붙여 두면 그 값을 출처로 쓴다.
+  const ref = (params.get("ref") || params.get("utm_source") || "").slice(0, 40);
+  track(ref ? { path: location.pathname, referrer: ref } : { path: location.pathname });
   const visitId = code && inviteIdOf(code);
   if (visitId) {
     try {
@@ -192,6 +195,10 @@
   $("[data-gate-request]").href =
     `mailto:${D.contact.email}?subject=${encodeURIComponent("포트폴리오 챗봇 초대 코드 요청")}` +
     `&body=${encodeURIComponent("안녕하세요, 포트폴리오를 보고 연락드립니다.\n\n회사/이름: \n")}`;
+
+  $("[data-gate-request]").addEventListener("click", () =>
+    track({ path: "code-request", title: "초대 코드 요청 메일", event: true })
+  );
 
   let wakeTimer, opener = null;
   const outside = () => $$("body > header, body > main, body > footer, body > .ask-fab");
@@ -225,6 +232,7 @@
       gateInput.value = "";
       gateError.hidden = true;
       gateInput.removeAttribute("aria-invalid");
+      track({ path: "gate-open", title: "코드 없이 챗봇 버튼", event: true });
       openDialog(gate, gateInput);
     })
   );
