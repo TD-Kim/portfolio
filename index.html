@@ -3,6 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- ?admin 이면 화면을 그리기 전에 챗봇 관리자 페이지로 보낸다 (주소는 data.json 의 chatbotUrl 과 같아야 함) -->
+  <script>
+    if (new URLSearchParams(location.search).has("admin")) {
+      document.documentElement.style.visibility = "hidden";
+      location.replace("https://portfolio-c8vetzvd3jbl4tpdkdfjwx.streamlit.app/?admin");
+    }
+  </script>
   <title>김진용 | Backend Developer</title>
   <meta name="description" content="공공기관과 기업의 시스템을 5년 넘게 만들어 온 Java · Spring Boot 백엔드 개발자 김진용의 포트폴리오" />
   <meta name="theme-color" content="#07070d" />

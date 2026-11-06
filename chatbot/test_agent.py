@@ -742,3 +742,17 @@ class VisitLogTest(unittest.TestCase):
 
         self.assertTrue(callable(visits.report))
         self.assertEqual(visits.KST.utcoffset(None).total_seconds(), 9 * 3600)
+
+
+class SiteAdminRedirectTest(unittest.TestCase):
+    def test_admin_redirect_url_matches_chatbot_url(self):
+        import json
+        import re
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent
+        html = (root / "index.html").read_text(encoding="utf-8")
+        url = json.loads((root / "data.json").read_text(encoding="utf-8"))["chatbotUrl"].rstrip("/")
+        m = re.search(r'location\.replace\("([^"]+)\?admin"\)', html)
+        self.assertIsNotNone(m, "index.html 에 ?admin 이동 코드가 없음")
+        self.assertEqual(m.group(1).rstrip("/"), url, "data.json 의 chatbotUrl 이 바뀌면 index.html 도 바꿔야 함")
