@@ -313,7 +313,9 @@ if "admin" in st.query_params:
                     labels = registry.labels() if registry else {}
                 except Exception:
                     labels = {}
-                gc = _visits.GoatCounter(os.environ.get("GOATCOUNTER_SITE", "td-kim").strip() or "td-kim", gc_token)
+                # 화면을 오래 붙잡지 않게 404 는 2초 뒤 한 번만 다시 묻는다
+                gc = _visits.GoatCounter(os.environ.get("GOATCOUNTER_SITE", "td-kim").strip() or "td-kim", gc_token,
+                                         tries=2, wait=2)
                 with st.spinner("GoatCounter 에서 불러오는 중…"):
                     try:
                         text = _visits.report(gc, today, labels) or f"{today} 아직 방문이 없어요."
