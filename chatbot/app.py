@@ -298,6 +298,9 @@ if "admin" in st.query_params:
 
         import visits as _visits
 
+        # 서버가 켜진 채로 새 코드가 배포되면 예전 visits 모듈이 남아 있어서(11/9 TypeError), 열 때마다 다시 읽는다
+        _visits = importlib.reload(_visits)
+
         conv_log = get_logger(AGENT_VERSION, *LOG_ARGS)
         gc_token = os.environ.get("GOATCOUNTER_TOKEN", "").strip()
         st.markdown("##### 오늘 (실시간)")
