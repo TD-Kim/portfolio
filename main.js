@@ -194,7 +194,30 @@
     return null;
   };
   const gcQueue = [];
+  // 주인 방문 빼기: 주소에 ?me 를 붙여 한 번 들어오면 이 브라우저는 통계에서 빠진다. ?me=off 로 되돌린다.
+  // (브라우저마다 따로 저장되므로 휴대폰, PC, 카카오톡 안 브라우저에서 각각 한 번씩)
+  const SKIP = "portfolio-skip-stats";
+  let skipStats = false;
+  try {
+    if (params.has("me")) {
+      if (params.get("me") === "off") localStorage.removeItem(SKIP);
+      else localStorage.setItem(SKIP, "1");
+      params.delete("me");
+      const rest = params.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+      const msg = localStorage.getItem(SKIP) ? "이 브라우저의 방문은 이제 통계에서 빠져요" : "이 브라우저의 방문을 다시 통계에 넣어요";
+      const toast = document.createElement("p");
+      toast.className = "toast";
+      toast.setAttribute("role", "status");
+      toast.textContent = msg;
+      document.body.append(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+    skipStats = localStorage.getItem(SKIP) === "1";
+  } catch {}
+
   const track = (opts) => {
+    if (skipStats) return;
     const gc = window.goatcounter;
     if (gc && gc.count) {
       try { gc.count(opts); } catch {}

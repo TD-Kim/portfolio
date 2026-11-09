@@ -404,3 +404,10 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
   html { scroll-behavior: auto; }
   .js .reveal { opacity: 1; transform: none; }
 }
+
+/* 잠깐 떴다 사라지는 안내 (예: ?me 로 통계 빼기) */
+.toast {
+  position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 300;
+  padding: 10px 16px; border-radius: 10px; font-size: 14px; color: var(--text);
+  background: var(--raised); border: 1px solid var(--line-strong); box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.7);
+}
