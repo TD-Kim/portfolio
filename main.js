@@ -12,7 +12,6 @@
   try { still = still || localStorage.getItem("portfolio-still") === "1"; } catch {}
   const html = document.documentElement;
   html.classList.toggle("still", still);
-  const fine = matchMedia("(pointer: fine)").matches;
 
   /* ---------- render content ---------- */
   document.title = `${D.name} | Portfolio`;
@@ -24,41 +23,74 @@
   // 페이지에는 요약만 보여 주고, 자세한 내용은 챗봇이 답합니다.
   $(".about-text").innerHTML =
     `<p>${esc(D.about[0])}</p>` +
-    `<p>자세한 경험과 프로젝트 이야기는 <button type="button" class="link-btn" data-ask>챗봇에게 물어보세요 →</button></p>`;
+    `<p>자세한 경험과 프로젝트 이야기는 <button type="button" class="link-btn" data-ask>챗봇에게 물어보세요</button></p>`;
   $(".stats").innerHTML = D.stats
-    .map((s) => `<div class="stat"><b data-count="${s.value}" data-suffix="${esc(s.suffix)}">0</b><span>${esc(s.label)}</span></div>`)
+    .map((s) => `<div class="stat"><dt>${esc(s.label)}</dt><dd>${esc(s.value + s.suffix)}</dd></div>`)
     .join("");
-  const skills = D.skills.map((s) => `<span>${esc(s)}</span>`).join("");
-  // 두 번 반복해서 끊김 없이 흐르게. 두 번째 묶음은 화면 읽기 프로그램이 두 번 읽지 않게 숨긴다
-  $(".marquee-track").innerHTML = skills + skills.replace(/<span>/g, '<span aria-hidden="true">');
+  $(".skills").innerHTML = D.skills
+    .map((s, i) => `<li><button type="button" class="skill" aria-pressed="false" data-skill="${i}">${esc(s)}</button></li>`)
+    .join("");
 
-  // 링크가 있으면 <a>, 없으면 <article> 카드
-  const card = (p, i) => {
+  /* ---------- 프로젝트 ↔ 경력기술서 연결 ---------- */
+  // 카드 제목과 경력기술서 제목이 조금씩 달라서(괄호, 어순) 3글자 이상 단어가 2개 이상 겹치면 같은 프로젝트로 본다
+  const norm = (t) => String(t).toLowerCase().replace(/[\s()·]/g, "");
+  const detailOf = (p) => {
+    const words = p.title.split(/[\s()·]+/).filter((w) => w.length >= 3);
+    let best = null, score = 1;
+    for (const c of D.careerDetails || []) {
+      const t = norm(c.title);
+      const n = words.filter((w) => t.includes(norm(w))).length;
+      if (n > score) { best = c; score = n; }
+    }
+    return best;
+  };
+  const details = D.projects.map(detailOf);
+
+  // 펼쳤을 때 보여 줄 맡은 일 3개: 기술 이름·괄호가 들어간 구체적인 줄을 먼저 고르고, 원래 순서대로 보여 준다.
+  // 나머지는 챗봇에게 물어보게 한다.
+  const highlights = (c) => {
+    const score = (d) => (/[()]|[A-Za-z]{3,}/.test(d) ? 1000 : 0) + d.length - (/보조/.test(d) ? 2000 : 0); // 보조 업무는 뒤로
+    const top = c.duties.map((d, k) => ({ d, k })).sort((a, b) => score(b.d) - score(a.d)).slice(0, 3);
+    return top.sort((a, b) => a.k - b.k).map((x) => x.d);
+  };
+
+  // 링크가 있으면 <a>, 없으면 <article> 카드. 경력기술서가 있는 프로젝트는 누르면 아래로 펼쳐진다
+  const card = (p, i, list) => {
     const meta = [p.period, p.org].filter(Boolean).map(esc).join(" · ");
+    const right = p.status ? `<span class="badge">${esc(p.status)}</span>` : p.link ? '<span class="card-arrow">↗</span>' : "";
+    const c = list === "projects" && details[i];
+    const more = c
+      ? `<button type="button" class="more" aria-expanded="false" aria-controls="more-${i}">맡은 일 보기<svg class="chev" aria-hidden="true" viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+         <div class="card-more" id="more-${i}" hidden>
+           <p class="cmd"><span class="prompt">$</span> head -3 projects/${String(i + 1).padStart(2, "0")}.md</p>
+           <ul class="duties">${highlights(c).map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
+           <p class="more-left">외 ${c.duties.length - Math.min(3, c.duties.length)}가지 일을 더 했어요. 어떻게, 어디까지 했는지는 챗봇이 자세히 답해 드려요</p>
+           <button type="button" class="btn btn-primary more-ask" data-ask>💬 이 프로젝트 챗봇에게 물어보기</button>
+         </div>`
+      : "";
     const inner = `
-        <span class="card-num">${String(i + 1).padStart(2, "0")}${meta ? ` <span class="card-meta">${meta}</span>` : ""}</span>
-        ${p.status ? `<span class="badge">${esc(p.status)}</span>` : ""}
-        ${p.link ? '<span class="card-arrow">↗</span>' : ""}
+        <span class="card-top"><span>${String(i + 1).padStart(2, "0")}${meta ? ` <span class="card-meta">${meta}</span>` : ""}</span>${right}</span>
         <h3>${esc(p.title)}</h3>
         <p>${esc(p.summary || p.desc)}</p>
-        <div class="tags">${p.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>`;
+        <div class="tags">${p.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>${more}`;
     return p.link
       ? `<a class="card reveal" href="${esc(p.link)}" target="_blank" rel="noopener">${inner}</a>`
-      : `<article class="card reveal">${inner}</article>`;
+      : `<article class="card reveal" id="${list === "projects" ? `project-${i + 1}` : ""}">${inner}</article>`;
   };
-  $(".projects:not(.learning)").innerHTML = D.projects.map(card).join("");
-  $(".projects.learning").innerHTML = D.learning.map(card).join("");
+  $(".projects:not(.learning)").innerHTML = D.projects.map((p, i) => card(p, i, "projects")).join("");
+  $(".projects.learning").innerHTML = D.learning.map((p, i) => card(p, i, "learning")).join("");
 
   $(".creds-list").innerHTML = D.credentials
     .map((c) => `<li><span class="mono">${esc(c.year)}</span><b>${esc(c.title)}</b>${c.desc ? `<small>${esc(c.desc)}</small>` : ""}</li>`)
     .join("");
 
-  $(".timeline").innerHTML = D.experience
+  // 경력은 배포 로그처럼: 맨 위(지금 다니는 곳)가 HEAD
+  $(".log").innerHTML = D.experience
     .map(
-      (e) => `
-      <li class="reveal">
-        <span class="period">${esc(e.period)}</span>
-        <h3>${esc(e.title)}<small>${esc(e.org)}</small></h3>
+      (e, i) => `
+      <li class="reveal${i === 0 ? " head" : ""}">
+        <span class="period">${esc(e.period)}</span>${i === 0 ? '<span class="head-tag">HEAD</span>' : ""}
+        <h3>${esc(e.title)}</h3>
         <p>${esc(e.desc)}</p>
       </li>`
     )
@@ -67,9 +99,10 @@
   const email = $("[data-email]");
   email.textContent = D.contact.email;
   email.href = `mailto:${D.contact.email}`;
-  $(".contact-links").innerHTML = D.contact.links
-    .map((l) => `<a class="btn btn-ghost magnetic" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`)
-    .join("");
+  $(".contact-links").insertAdjacentHTML(
+    "beforeend",
+    D.contact.links.map((l) => `<a class="btn btn-ghost" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")
+  );
 
   /* ---------- chatbot: 초대 코드 확인 → 깨우는 중 안내 → 이동 ---------- */
   // 초대 코드는 링크(?code=...)로 받거나 직접 입력한다. 관리자 페이지에서 만든 코드(i1.내용.서명)는
@@ -267,7 +300,160 @@
   });
   addEventListener("pageshow", closeAll); // 뒤로 가기로 돌아왔을 때 안내창 닫기
 
-  /* ---------- typing effect ---------- */
+  /* ---------- 공통: 아래에서 올라오는 창 (자세히 보기, 터미널) ---------- */
+  // <dialog> 의 showModal 이 뒤쪽을 막고, Esc 로 닫히고, 포커스를 창 안에 가둔다
+  const sheetOpener = new WeakMap();
+  const openSheet = (dlg, focusEl) => {
+    sheetOpener.set(dlg, document.activeElement);
+    dlg.showModal();
+    focusEl?.focus();
+  };
+  $$("dialog.sheet").forEach((dlg) => {
+    dlg.addEventListener("close", () => sheetOpener.get(dlg)?.focus?.());
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); }); // 바깥(어두운 곳) 누르면 닫기
+    $$("[data-sheet-close]", dlg).forEach((b) => b.addEventListener("click", () => dlg.close()));
+  });
+  // 창 안의 '물어보기' 버튼은 창을 닫고 챗봇으로 간다
+  $$("dialog.sheet [data-ask]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close(), { capture: true }));
+
+  /* ---------- 프로젝트 카드 펼치기 (아코디언) ---------- */
+  const toggleCard = (cardEl, open) => {
+    const btn = $(".more", cardEl), box = $(".card-more", cardEl);
+    if (!btn) return;
+    open = open ?? btn.getAttribute("aria-expanded") !== "true";
+    btn.setAttribute("aria-expanded", String(open));
+    btn.firstChild.textContent = open ? "접기" : "맡은 일 보기";
+    box.hidden = !open;
+    cardEl.classList.toggle("open", open);
+    if (open) track({ path: `detail/${cardEl.id.replace("project-", "")}`, title: "프로젝트 펼치기", event: true });
+  };
+  $$(".projects:not(.learning) .card").forEach((cardEl) => {
+    // 카드 어디를 눌러도 펼쳐지고, 키보드는 '맡은 일 보기' 버튼으로 연다. 안쪽 버튼·글자 선택은 그대로 둔다
+    cardEl.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ask]") || (e.target.closest("button") && !e.target.closest(".more"))) return;
+      if (String(getSelection()).length) return;
+      toggleCard(cardEl);
+    });
+  });
+  // 기술 지도·터미널에서 프로젝트를 고르면 그 카드로 이동해서 펼친다
+  const showDetail = (i) => {
+    const cardEl = $(`#project-${i + 1}`);
+    if (!cardEl) return;
+    toggleCard(cardEl, true);
+    cardEl.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    setTimeout(() => $(".more", cardEl)?.focus({ preventScroll: true }), reduced ? 0 : 400);
+  };
+
+  /* ---------- 기술 ↔ 프로젝트 연결 지도 ---------- */
+  // 'Java' 가 'JavaScript' 에 걸리지 않게, 기술 이름 바로 뒤가 글자가 아닐 때만 같은 기술로 본다
+  const usesSkill = (skill, items) => {
+    const re = new RegExp("^" + skill.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-z])", "i");
+    return items.some((t) => re.test(String(t).trim()));
+  };
+  const noteOf = (skill) =>
+    (D.skillNotes || []).find((n) => n.skill.toLowerCase().split(/\s*·\s*/).some((part) => part === skill.toLowerCase()) || n.skill.toLowerCase() === skill.toLowerCase());
+  const skillInfo = $(".skill-info");
+  const clearSkill = () => {
+    $$(".skill").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    $(".skills").classList.remove("picking");
+    skillInfo.hidden = true;
+  };
+  // 기술 목록·결과 상자 바깥을 누르거나 Esc 를 누르면 선택이 풀린다
+  document.addEventListener("click", (e) => {
+    if (!skillInfo.hidden && !e.target.closest(".skills, .skill-info")) clearSkill();
+  });
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !skillInfo.hidden && !document.querySelector("dialog[open]")) clearSkill();
+  });
+  $$(".skill").forEach((b) =>
+    b.addEventListener("click", () => {
+      const on = b.getAttribute("aria-pressed") !== "true";
+      if (!on) return clearSkill();
+      $$(".skill").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      $(".skills").classList.add("picking");
+      const skill = D.skills[Number(b.dataset.skill)];
+      const used = D.projects
+        .map((p, i) => ({ p, i }))
+        .filter(({ p, i }) => usesSkill(skill, [...p.tags, ...(details[i]?.env || [])]));
+      const note = noteOf(skill);
+      skillInfo.innerHTML = `
+        <p class="cmd"><span class="prompt">$</span> grep -r "${esc(skill)}" projects/</p>
+        ${used.length
+          ? `<ul class="hits">${used.map(({ p, i }) => `<li><button type="button" class="hit" data-detail="${i}">${esc(p.title)}<span class="mono">${esc(p.period || "")}</span></button></li>`).join("")}</ul>`
+          : '<p class="no-hit">대표 프로젝트에는 없고, 아래 메모의 경험이 있어요</p>'}
+        ${note ? `<p class="note"><b>어디까지</b> ${esc(note.did)}${note.level ? ` <span class="level">· ${esc(note.level)}</span>` : ""}</p>` : ""}`;
+      skillInfo.hidden = false;
+      $$("[data-detail]", skillInfo).forEach((h) => h.addEventListener("click", () => showDetail(Number(h.dataset.detail))));
+      track({ path: `skill/${skill}`, title: "기술 지도", event: true });
+    })
+  );
+
+  /* ---------- 이스터에그: 미니 터미널 ---------- */
+  const termDlg = $("dialog.term");
+  const termOut = $("[data-term-out]");
+  const termIn = $("[data-term-in]");
+  const print = (html, cls = "") => termOut.insertAdjacentHTML("beforeend", `<div class="${cls}">${html}</div>`);
+  const pad = (s, n) => s + " ".repeat(Math.max(1, n - s.length));
+  const commands = {
+    help: () => print(
+      ["whoami", "ls projects", "cat projects/01", "cat skills", "cat contact", "ask", "clear", "exit"]
+        .map((c) => `<span class="cmd-name">${pad(c, 18)}</span>`).join("<br>") +
+      '<br><span class="dim">↑ 키로 이전 명령, Tab 으로 자동 완성</span>'
+    ),
+    whoami: () => print(`${esc(D.name)} (${esc(D.nameEn)})<br><span class="dim">${esc(D.tagline)}</span>`),
+    "ls projects": () => print(D.projects.map((p, i) => `<span class="cmd-name">${String(i + 1).padStart(2, "0")}</span>  ${esc(p.title)}  <span class="dim">${esc(p.period || "")}</span>`).join("<br>") + '<br><span class="dim">cat projects/01 처럼 번호로 열어 보세요</span>'),
+    "cat skills": () => print(D.skills.map(esc).join("  ·  ")),
+    "cat contact": () => print(`email   ${esc(D.contact.email)}<br>${D.contact.links.map((l) => `${esc(pad(l.label.toLowerCase(), 8))}${esc(l.url)}`).join("<br>")}`),
+    ask: () => { termDlg.close(); $("[data-ask]").click(); },
+    clear: () => (termOut.innerHTML = ""),
+    exit: () => termDlg.close(),
+    ls: () => commands["ls projects"](),
+    "sudo hire jinyong": () => print('권한 확인 중… <span class="ok">승인</span>. 연락은 <span class="cmd-name">cat contact</span> 또는 <span class="cmd-name">ask</span> 로 해 주세요 🙂'),
+  };
+  const cmdHistory = [];
+  let hIdx = 0;
+  const run = (raw) => {
+    const cmd = raw.trim().replace(/\s+/g, " ");
+    print(`<span class="prompt">$</span> ${esc(cmd)}`, "echo");
+    if (!cmd) return;
+    cmdHistory.push(cmd); hIdx = cmdHistory.length;
+    const m = cmd.match(/^cat projects\/0?(\d+)(\.md)?$/);
+    if (m) {
+      const i = Number(m[1]) - 1, p = D.projects[i], c = details[i];
+      if (!p) return print(`cat: projects/${esc(m[1])}: 그런 프로젝트가 없어요 (ls projects)`, "err");
+      print(`<b>${esc(p.title)}</b>  <span class="dim">${esc(p.period || "")}</span><br>` +
+        (c ? c.duties.map((d) => `- ${esc(d)}`).join("<br>") : esc(p.desc)));
+      return;
+    }
+    (commands[cmd.toLowerCase()] || (() => print(`${esc(cmd.split(" ")[0])}: 없는 명령이에요. help 를 입력해 보세요`, "err")))();
+    termOut.scrollTop = termOut.scrollHeight;
+  };
+  const openTerm = () => {
+    if (!termOut.childElementCount) {
+      print(`${esc(D.nameEn)} 의 포트폴리오에 오신 걸 환영해요. <span class="cmd-name">help</span> 를 입력해 보세요`, "dim");
+    }
+    openSheet(termDlg, termIn);
+    track({ path: "terminal", title: "터미널 열기", event: true });
+  };
+  $("[data-term-form]").addEventListener("submit", (e) => { e.preventDefault(); run(termIn.value); termIn.value = ""; termOut.scrollTop = termOut.scrollHeight; });
+  termIn.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" && cmdHistory.length) { e.preventDefault(); hIdx = Math.max(0, hIdx - 1); termIn.value = cmdHistory[hIdx]; }
+    else if (e.key === "ArrowDown" && cmdHistory.length) { e.preventDefault(); hIdx = Math.min(cmdHistory.length, hIdx + 1); termIn.value = cmdHistory[hIdx] || ""; }
+    else if (e.key === "Tab" && termIn.value) {
+      const hit = Object.keys(commands).find((c) => c.startsWith(termIn.value.toLowerCase()) && c !== "sudo hire jinyong");
+      if (hit) { e.preventDefault(); termIn.value = hit; }
+    }
+  });
+  $("[data-term-open]").addEventListener("click", openTerm);
+  // ` 키로 열기 (글을 입력하는 중이거나 다른 창이 열려 있을 때는 무시)
+  addEventListener("keydown", (e) => {
+    if (e.key !== "`" || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.closest?.("input, textarea, [contenteditable]") || document.querySelector("dialog[open]") || !gate.hidden || !wake.hidden) return;
+    e.preventDefault();
+    openTerm();
+  });
+
+  /* ---------- 직함 타이핑: 두 바퀴 돌고 첫 직함에서 멈춘다 ---------- */
   const typed = $(".typed");
   const caret = $(".caret");
   const settle = () => { typed.textContent = D.roles[0]; caret.classList.add("done"); };
@@ -281,7 +467,7 @@
       typed.textContent = word.slice(0, c);
       let delay = del ? 40 : 90;
       if (!del && c === word.length) {
-        if (r === 0 && rounds >= 2) return caret.classList.add("done"); // 두 바퀴 뒤 첫 직함에서 멈춘다
+        if (r === 0 && rounds >= 2) return caret.classList.add("done");
         del = true; delay = 1600;
       } else if (del && c === 0) {
         del = false; r = (r + 1) % D.roles.length; delay = 300;
@@ -292,106 +478,33 @@
     tick();
   }
 
-  /* ---------- scroll reveal + counters ---------- */
-  const countUp = (el) => {
-    const target = parseFloat(el.dataset.count);
-    const decimals = (String(target).split(".")[1] || "").length;
-    const suffix = el.dataset.suffix;
-    if (reduced) return (el.textContent = target.toFixed(decimals) + suffix);
-    const start = performance.now();
-    const step = (t) => {
-      const k = Math.min((t - start) / 1400, 1);
-      const eased = 1 - Math.pow(1 - k, 3);
-      el.textContent = (target * eased).toFixed(decimals) + suffix;
-      if (k < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  };
-  const io = new IntersectionObserver(
-    (entries) => entries.forEach((e) => {
-      if (!e.isIntersecting) return;
-      e.target.classList.add("in");
-      $$("[data-count]", e.target).forEach(countUp);
-      io.unobserve(e.target);
-    }),
-    { threshold: 0.15 }
-  );
-  $$(".reveal").forEach((el, i) => {
-    el.style.transitionDelay = `${(i % 4) * 80}ms`;
-    io.observe(el);
-  });
-
-  /* ---------- scroll progress, active nav, timeline fill ---------- */
-  const progress = $(".progress");
-  const timeline = $(".timeline");
-  const navLinks = $$(".nav nav a");
-  const sections = navLinks.map((a) => $(a.getAttribute("href")));
-  const onScroll = () => {
-    const h = document.documentElement;
-    progress.style.transform = `scaleX(${h.scrollTop / (h.scrollHeight - h.clientHeight || 1)})`;
-
-    const tr = timeline.getBoundingClientRect();
-    const fill = Math.min(Math.max((innerHeight * 0.6 - tr.top) / tr.height, 0), 1);
-    timeline.style.setProperty("--fill", fill.toFixed(3));
-
-    let current = -1;
-    sections.forEach((s, i) => { if (s.getBoundingClientRect().top < innerHeight * 0.4) current = i; });
-    navLinks.forEach((a, i) => a.classList.toggle("active", i === current));
-  };
-  addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
-
-  /* ---------- pointer effects (desktop only) ---------- */
-  if (fine && !reduced) {
-    const glow = $(".cursor-glow");
-    addEventListener("pointermove", (e) => {
-      glow.style.opacity = 1;
-      glow.style.transform = `translate(${e.clientX - 210}px, ${e.clientY - 210}px)`;
-    });
-
-    // 3D tilt + spotlight on cards
-    $$(".card").forEach((card) => {
-      card.addEventListener("pointermove", (e) => {
-        const r = card.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-        card.style.setProperty("--mx", `${x * 100}%`);
-        card.style.setProperty("--my", `${y * 100}%`);
-        card.style.transform = `rotateX(${(0.5 - y) * 10}deg) rotateY(${(x - 0.5) * 10}deg)`;
-      });
-      card.addEventListener("pointerleave", () => (card.style.transform = ""));
-    });
-
-    // magnetic buttons
-    $$(".magnetic").forEach((el) => {
-      el.addEventListener("pointermove", (e) => {
-        const r = el.getBoundingClientRect();
-        el.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * 0.3}px, ${(e.clientY - r.top - r.height / 2) * 0.4}px)`;
-      });
-      el.addEventListener("pointerleave", () => (el.style.transform = ""));
-    });
-  }
-
-  /* ---------- particle network background ---------- */
+  /* ---------- 배경: 천천히 움직이는 점과 선. 색은 강조색(--accent)을 옅게 ---------- */
   const canvas = $("#bg");
   const ctx = canvas.getContext("2d");
+  const accentRgb = () => {
+    const hex = getComputedStyle(html).getPropertyValue("--accent").trim().replace("#", "");
+    const n = parseInt(hex.length === 3 ? hex.replace(/./g, "$&$&") : hex, 16);
+    return Number.isNaN(n) ? "242,178,76" : `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  };
+  let rgb = accentRgb(), frame = 0;
   let W, H, pts = [], mouse = { x: -9999, y: -9999 };
   const resize = () => {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     W = innerWidth; H = innerHeight;
     canvas.width = W * dpr; canvas.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const n = Math.min(Math.floor((W * H) / 14000), 110);
+    const n = Math.min(Math.floor((W * H) / 16000), 90);
     pts = Array.from({ length: n }, () => ({
       x: Math.random() * W, y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.35, vy: (Math.random() - 0.5) * 0.35,
+      vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
     }));
   };
   addEventListener("resize", resize);
   addEventListener("pointermove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
   resize();
-
   const LINK = 130;
   const draw = () => {
+    if (++frame % 30 === 0) rgb = accentRgb(); // 강조색이 바뀌면 따라간다
     ctx.clearRect(0, 0, W, H);
     for (const p of pts) {
       if (!html.classList.contains("still")) {
@@ -401,7 +514,7 @@
         if (p.x < 0 || p.x > W) p.vx *= -1;
         if (p.y < 0 || p.y > H) p.vy *= -1;
       }
-      ctx.fillStyle = "rgba(160,150,255,0.7)";
+      ctx.fillStyle = `rgba(${rgb},0.55)`;
       ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
     }
     for (let i = 0; i < pts.length; i++) {
@@ -409,7 +522,7 @@
         const a = pts[i], b = pts[j];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
         if (d < LINK) {
-          ctx.strokeStyle = `rgba(124,92,255,${(1 - d / LINK) * 0.35})`;
+          ctx.strokeStyle = `rgba(${rgb},${(1 - d / LINK) * 0.22})`;
           ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         }
       }
@@ -434,4 +547,33 @@
     syncToggle();
   });
   syncToggle();
+
+  /* ---------- 등장 효과: 섹션마다 한 번, 짧게 ---------- */
+  if (reduced || !("IntersectionObserver" in window)) {
+    $$(".reveal").forEach((el) => el.classList.add("in"));
+  } else {
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        e.target.classList.add("in");
+        io.unobserve(e.target);
+      }),
+      { threshold: 0.12 }
+    );
+    $$(".reveal").forEach((el, i) => {
+      el.style.transitionDelay = `${(i % 4) * 50}ms`;
+      io.observe(el);
+    });
+  }
+
+  /* ---------- 지금 보고 있는 섹션을 메뉴에 표시 ---------- */
+  const navLinks = $$(".nav nav a");
+  const sections = navLinks.map((a) => $(a.getAttribute("href")));
+  const onScroll = () => {
+    let current = -1;
+    sections.forEach((s, i) => { if (s.getBoundingClientRect().top < innerHeight * 0.4) current = i; });
+    navLinks.forEach((a, i) => a.classList.toggle("active", i === current));
+  };
+  addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
 })();

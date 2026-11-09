@@ -12,7 +12,7 @@
   </script>
   <title>김진용 | Backend Developer</title>
   <meta name="description" content="공공기관과 기업의 시스템을 5년 넘게 만들어 온 Java · Spring Boot 백엔드 개발자 김진용의 포트폴리오" />
-  <meta name="theme-color" content="#07070d" />
+  <meta name="theme-color" content="#0b0d14" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <!-- 링크를 카카오톡·슬랙·메일로 보낼 때 나오는 미리보기 -->
   <meta property="og:type" content="website" />
@@ -25,51 +25,73 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <!-- 자바스크립트가 켜졌을 때만 스크롤 등장 효과를 쓴다. 꺼져 있으면 내용이 그대로 보인다 -->
+  <!-- 자바스크립트가 켜졌을 때만 등장 효과를 쓴다. 꺼져 있으면 내용이 그대로 보인다 -->
   <script>document.documentElement.classList.replace("no-js", "js")</script>
 </head>
 <body>
-  <div class="progress" aria-hidden="true"></div>
   <canvas id="bg" aria-hidden="true"></canvas>
-  <div class="cursor-glow" aria-hidden="true"></div>
-
   <header class="nav">
-    <a href="#top" class="logo" data-name-en></a>
-    <nav>
-      <a href="#about">About</a>
-      <a href="#projects">Projects</a>
-      <a href="#experience">Experience</a>
-      <a href="#learning">Learning</a>
-      <a href="#contact">Contact</a>
-    </nav>
+    <div class="nav-inner">
+      <a href="#top" class="logo"><span class="prompt" aria-hidden="true">~</span><span data-name-en>Jinyong Kim</span></a>
+      <nav>
+        <a href="#about">소개</a>
+        <a href="#projects">프로젝트</a>
+        <a href="#experience">경력</a>
+        <a href="#learning">공부</a>
+        <a href="#contact">연락</a>
+      </nav>
+    </div>
   </header>
 
   <main id="top">
     <section class="hero">
-      <p class="hello mono">$ whoami</p>
-      <h1 class="hero-title"><span data-name>김진용</span></h1>
-      <p class="hero-role"><span class="typed">Backend Developer</span><span class="caret">|</span></p>
-      <p class="hero-tagline" data-tagline>공공기관과 기업의 시스템을 5년 넘게 설계하고 만들어 온 백엔드 개발자입니다. 지금은 AI 에이전트를 공부하고 있습니다.</p>
-      <div class="hero-cta">
-        <button type="button" class="btn btn-primary magnetic" data-ask>💬 저에 대해 물어보세요</button>
-        <a href="#projects" class="btn btn-ghost magnetic">프로젝트 보기</a>
+      <div class="hero-text">
+        <p class="cmd"><span class="prompt">$</span> whoami</p>
+        <h1 class="hero-title" data-name>김진용</h1>
+        <p class="hero-line">요구사항부터 운영까지, 시스템을 끝까지 만드는 개발자</p>
+        <p class="hero-role"><span class="typed">Backend Developer</span><span class="caret" aria-hidden="true"></span></p>
+        <p class="hero-tagline" data-tagline>공공기관과 기업의 시스템을 5년 넘게 설계하고 만들어 온 백엔드 개발자입니다. 지금은 AI 에이전트를 공부하고 있습니다.</p>
+        <div class="hero-cta">
+          <button type="button" class="btn btn-primary" data-ask>💬 저에 대해 물어보세요</button>
+          <a href="#projects" class="btn btn-ghost">프로젝트 보기</a>
+        </div>
       </div>
-      <a href="#about" class="scroll-hint" aria-label="아래로 스크롤"><span></span></a>
+
+      <!-- 이 포트폴리오에만 있는 것: 경력 자료로 답하는 챗봇. 실제로 나온 답변을 그대로 보여 준다 -->
+      <!-- 창 전체를 눌러도 열리지만, 키보드·화면 읽기에서는 대화를 읽은 뒤 아래 입력 칸 버튼으로 연다 -->
+      <div class="chat-preview" data-ask role="group" aria-label="챗봇 대화 예시">
+        <span class="chat-head">
+          <span class="chat-title">포트폴리오 챗봇</span>
+          <span class="chat-meta mono">경력 자료로 답해요</span>
+        </span>
+        <span class="chat-body">
+          <span class="msg msg-user">Kubernetes는 어디까지 해봤어요?</span>
+          <span class="msg msg-bot">
+            <span class="avatar" aria-hidden="true">🧑‍💻</span>
+            <span class="msg-text">병무청 디지털 플랫폼 개발(에니아소프트, 2025.06~)에서 접했어요. 직접 맡은 범위는 <b>kubectl로 서버 구성과 상태를 확인하는 수준</b>이고, 클러스터 구성·배포 설정·운영은 직접 하지 않았어요.</span>
+          </span>
+        </span>
+        <button type="button" class="chat-input" aria-label="챗봇 열고 질문하기"><span>질문을 입력하세요</span><span class="send" aria-hidden="true">↑</span></button>
+      </div>
     </section>
 
     <section id="about" class="section">
-      <h2 class="section-title reveal"><span class="num mono">01</span> About</h2>
+      <h2 class="section-title reveal"><span class="cmd"><span class="prompt">$</span> cat about.md</span>소개</h2>
       <div class="about-grid">
         <div class="about-text reveal"><p>요구사항 분석부터 설계, 개발, 배포, 운영까지 서비스 전체를 책임지는 개발자입니다.</p></div>
-        <div class="stats reveal"></div>
+        <dl class="stats reveal"></dl>
       </div>
-      <div class="marquee reveal" aria-label="기술 스택"><div class="marquee-track"></div></div>
+      <div class="skill-map reveal">
+        <p class="skill-hint">기술을 누르면 그 기술을 쓴 프로젝트와 어디까지 해 봤는지가 나와요</p>
+        <ul class="skills" aria-label="기술 스택"></ul>
+        <div class="skill-info" aria-live="polite" hidden></div>
+      </div>
     </section>
 
     <section id="projects" class="section">
-      <h2 class="section-title reveal"><span class="num mono">02</span> Projects</h2>
+      <h2 class="section-title reveal"><span class="cmd"><span class="prompt">$</span> ls projects/</span>프로젝트</h2>
       <div class="projects"></div>
       <noscript>
         <ul class="noscript-list">
@@ -85,28 +107,31 @@
     </section>
 
     <section id="experience" class="section">
-      <h2 class="section-title reveal"><span class="num mono">03</span> Experience</h2>
+      <h2 class="section-title reveal"><span class="cmd"><span class="prompt">$</span> git log --career</span>경력</h2>
       <div class="exp-grid">
-        <ol class="timeline"></ol>
+        <ol class="log"></ol>
         <div class="creds reveal">
-          <h3 class="creds-title mono">Education · Certificates</h3>
+          <h3 class="creds-title">학력 · 자격</h3>
           <ul class="creds-list"></ul>
         </div>
       </div>
     </section>
 
     <section id="learning" class="section">
-      <h2 class="section-title reveal"><span class="num mono">04</span> Now Learning</h2>
+      <h2 class="section-title reveal"><span class="cmd"><span class="prompt">$</span> cat learning.md</span>공부하고 있는 것</h2>
       <p class="section-lead reveal">회사 밖에서 혼자 공부하고 도전하고 있는 것들입니다.</p>
       <div class="projects learning"></div>
     </section>
 
     <section id="contact" class="section contact">
-      <h2 class="section-title reveal"><span class="num mono">05</span> Contact</h2>
-      <p class="contact-lead reveal">함께 일하고 싶거나 궁금한 점이 있다면 편하게 연락주세요.<br />챗봇에게 물어보면 경력에 대해 더 자세히 답해 드리고, 메시지도 전해 드려요.</p>
-      <button type="button" class="btn btn-primary magnetic ask-cta reveal" data-ask>💬 저에 대해 물어보세요</button>
-      <a class="contact-email reveal magnetic" data-email></a>
-      <div class="contact-links reveal"></div>
+      <h2 class="section-title reveal"><span class="cmd"><span class="prompt">$</span> mail jinyong</span>연락</h2>
+      <p class="contact-lead reveal">함께 일하고 싶거나 궁금한 점이 있다면 편하게 연락주세요. 챗봇에게 물어보면 경력에 대해 더 자세히 답해 드리고, 메시지도 전해 드려요.</p>
+      <div class="contact-row reveal">
+        <a class="contact-email" data-email></a>
+        <div class="contact-links">
+          <button type="button" class="btn btn-primary" data-ask>💬 저에 대해 물어보세요</button>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -121,7 +146,7 @@
         <label class="gate-label" for="gate-code">초대 코드</label>
         <input id="gate-code" data-gate-input aria-describedby="gate-error" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: K7F2-Q9MX-AB3D" maxlength="400" />
         <button type="submit" class="btn btn-primary">입장하기</button>
-        <p class="gate-error" id="gate-error" data-gate-error role="alert" hidden>코드를 입력해 주세요. 받은 링크를 그대로 붙여 넣어도 돼요.</p>
+        <p class="gate-error" id="gate-error" data-gate-error role="alert" hidden>코드를 입력해 주세요. 받은 링크를 그대로 붙여 넣어도 돼요</p>
       </form>
       <p class="wake-sub">코드가 없으신가요? <a data-gate-request class="gate-link">이메일로 요청하기</a></p>
       <div class="wake-actions">
@@ -134,14 +159,28 @@
     <div class="wake-card">
       <div class="wake-spinner" aria-hidden="true"></div>
       <h3 id="wake-title">챗봇을 여는 중이에요</h3>
-      <p>잠시만 기다려 주세요.</p>
-      <p class="wake-sub">화면이 바뀌지 않으면 <a class="gate-link" data-wake-go>여기를 눌러 주세요</a>.</p>
+      <p>잠시만 기다려 주세요</p>
+      <p class="wake-sub">화면이 바뀌지 않으면 <a class="gate-link" data-wake-go>여기를 눌러 주세요</a></p>
     </div>
   </div>
 
-  <footer class="footer mono">
+  <!-- 이스터에그: 미니 터미널 -->
+  <dialog class="sheet term" aria-labelledby="term-title">
+    <div class="sheet-head">
+      <h3 id="term-title" class="mono">jinyong@portfolio: ~</h3>
+      <button type="button" class="sheet-close" data-sheet-close aria-label="닫기">✕</button>
+    </div>
+    <div class="term-out mono" data-term-out aria-live="polite"></div>
+    <form class="term-form mono" data-term-form>
+      <label for="term-in"><span class="prompt">$</span></label>
+      <input id="term-in" data-term-in autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="명령 입력 (help 를 입력해 보세요)" />
+    </form>
+  </dialog>
+
+  <footer class="footer">
+    <button type="button" class="term-open mono" data-term-open><span class="prompt">$</span> 터미널 열기<kbd>`</kbd></button>
     <button type="button" class="still-toggle" data-still aria-pressed="false">⏸ 움직임 멈추기</button>
-    <p>© <span data-year></span> <span data-name-en>Jinyong Kim</span></p>
+    <p class="mono">© <span data-year></span> <span data-name-en>Jinyong Kim</span></p>
     <p class="visit-note">방문 통계는 GoatCounter로 집계합니다 (쿠키·IP 저장 없음)</p>
   </footer>
 
