@@ -59,7 +59,8 @@
       </div>
 
       <!-- 이 포트폴리오에만 있는 것: 경력 자료로 답하는 챗봇. 실제로 나온 답변을 그대로 보여 준다 -->
-      <button type="button" class="chat-preview" data-ask aria-label="챗봇 열기: 진용님에 대해 물어보세요">
+      <!-- 창 전체를 눌러도 열리지만, 키보드·화면 읽기에서는 대화를 읽은 뒤 아래 입력 칸 버튼으로 연다 -->
+      <div class="chat-preview" data-ask role="group" aria-label="챗봇 대화 예시">
         <span class="chat-head">
           <span class="chat-title">포트폴리오 챗봇</span>
           <span class="chat-meta mono">경력 자료로 답해요</span>
@@ -71,8 +72,8 @@
             <span class="msg-text">병무청 디지털 플랫폼 개발(에니아소프트, 2025.06~)에서 접했어요. 직접 맡은 범위는 <b>kubectl로 서버 구성과 상태를 확인하는 수준</b>이고, 클러스터 구성·배포 설정·운영은 직접 하지 않았어요.</span>
           </span>
         </span>
-        <span class="chat-input"><span>질문을 입력하세요</span><span class="send" aria-hidden="true">↑</span></span>
-      </button>
+        <button type="button" class="chat-input" aria-label="챗봇 열고 질문하기"><span>질문을 입력하세요</span><span class="send" aria-hidden="true">↑</span></button>
+      </div>
     </section>
 
     <section id="about" class="section">
