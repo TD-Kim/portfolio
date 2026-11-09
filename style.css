@@ -14,6 +14,8 @@
   --accent: #3ecfbf;        /* 틸: 서버 상태 화면의 '정상' 색 */
   --on-accent: #04201c;
   --glow: color-mix(in srgb, var(--accent) 45%, transparent);
+  --ghost-line: rgba(238, 240, 245, 0.55);  /* 보조 버튼 흰 테두리 */
+  --glow-white: rgba(238, 240, 245, 0.38);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font: "Noto Sans KR", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
@@ -346,6 +348,19 @@ dialog.term { background: var(--deep); }
 }
 .term-open:hover { color: var(--text); border-color: var(--accent); }
 kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--muted); }
+
+/* ---------- 보조 버튼: 흰 테두리 + 은은한 흰 빛 (주 버튼의 틸 빛과 같은 방식, 한 단계 약하게) ---------- */
+.btn-ghost, .still-toggle, .term-open, .hit, .sheet-close {
+  background: transparent; color: var(--text); border: 1px solid var(--ghost-line);
+  box-shadow: 0 0 20px -4px var(--glow-white), inset 0 0 14px -8px var(--glow-white);
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease), box-shadow 180ms var(--ease), transform 120ms var(--ease);
+}
+.btn-ghost:hover, .still-toggle:hover, .term-open:hover, .hit:hover, .sheet-close:hover {
+  background: rgba(238, 240, 245, 0.05); border-color: var(--text);
+  box-shadow: 0 0 28px -2px var(--glow-white), inset 0 0 16px -8px var(--glow-white);
+}
+.still-toggle, .term-open { color: var(--text-2); }
+.still-toggle:hover, .term-open:hover { color: var(--text); }
 
 /* ---------- 접근성 ---------- */
 :where(a, button, input, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
