@@ -14,7 +14,6 @@
 - `ui-ux-pro-max/SKILL.md`: 플러그인용 스크립트 경로(`${CLAUDE_PLUGIN_ROOT}/...`)를 저장소 기준
   `$(git rev-parse --show-toplevel)/.claude/skills/ui-ux-pro-max/scripts/search.py` 로 바꿨습니다.
 - `ui-ux-pro-max/scripts/tests` 는 뺐습니다(스킬 동작에는 필요 없음).
-
 - `unslop`: 원본 그대로 복사했고, 출처와 라이선스를 `unslop/SOURCE.md`, `unslop/LICENSE` 에 남겼습니다.
   실시간 사이트 캡처(`scripts/snapshot.mjs`)와 영상(`scripts/story.mjs`)은 Playwright, ffmpeg 가 있어야 합니다.
 
