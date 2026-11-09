@@ -46,12 +46,27 @@
   };
   const details = D.projects.map(detailOf);
 
-  // 링크가 있으면 <a>, 없으면 <article> 카드. 경력기술서가 있는 프로젝트는 '자세히 보기' 버튼을 단다
+  // 펼쳤을 때 보여 줄 맡은 일 3개: 기술 이름·괄호가 들어간 구체적인 줄을 먼저 고르고, 원래 순서대로 보여 준다.
+  // 나머지는 챗봇에게 물어보게 한다.
+  const highlights = (c) => {
+    const score = (d) => (/[()]|[A-Za-z]{3,}/.test(d) ? 1000 : 0) + d.length - (/보조/.test(d) ? 2000 : 0); // 보조 업무는 뒤로
+    const top = c.duties.map((d, k) => ({ d, k })).sort((a, b) => score(b.d) - score(a.d)).slice(0, 3);
+    return top.sort((a, b) => a.k - b.k).map((x) => x.d);
+  };
+
+  // 링크가 있으면 <a>, 없으면 <article> 카드. 경력기술서가 있는 프로젝트는 누르면 아래로 펼쳐진다
   const card = (p, i, list) => {
     const meta = [p.period, p.org].filter(Boolean).map(esc).join(" · ");
     const right = p.status ? `<span class="badge">${esc(p.status)}</span>` : p.link ? '<span class="card-arrow">↗</span>' : "";
-    const more = list === "projects" && details[i]
-      ? `<button type="button" class="more" data-detail="${i}">맡은 일 자세히 보기 <span aria-hidden="true">→</span></button>`
+    const c = list === "projects" && details[i];
+    const more = c
+      ? `<button type="button" class="more" aria-expanded="false" aria-controls="more-${i}">맡은 일 보기 <span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="card-more" id="more-${i}" hidden>
+           <p class="cmd"><span class="prompt">$</span> head -3 projects/${String(i + 1).padStart(2, "0")}.md</p>
+           <ul class="duties">${highlights(c).map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
+           <p class="more-left">외 ${c.duties.length - Math.min(3, c.duties.length)}가지 일을 더 했어요. 어떻게, 어디까지 했는지는 챗봇이 자세히 답해 드려요</p>
+           <button type="button" class="btn btn-primary more-ask" data-ask>💬 이 프로젝트 챗봇에게 물어보기</button>
+         </div>`
       : "";
     const inner = `
         <span class="card-top"><span>${String(i + 1).padStart(2, "0")}${meta ? ` <span class="card-meta">${meta}</span>` : ""}</span>${right}</span>
@@ -301,20 +316,33 @@
   // 창 안의 '물어보기' 버튼은 창을 닫고 챗봇으로 간다
   $$("dialog.sheet [data-ask]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close(), { capture: true }));
 
-  /* ---------- 프로젝트 자세히 보기 ---------- */
-  const detailDlg = $("dialog.detail");
-  const showDetail = (i) => {
-    const p = D.projects[i], c = details[i];
-    if (!c) return;
-    $("[data-detail-cmd]", detailDlg).innerHTML = `<span class="prompt">$</span> cat projects/${String(i + 1).padStart(2, "0")}.md`;
-    $("[data-detail-title]", detailDlg).textContent = p.title;
-    $("[data-detail-meta]", detailDlg).textContent = [c.period || p.period, c.org || p.org].filter(Boolean).join(" · ");
-    $("[data-detail-duties]", detailDlg).innerHTML = c.duties.map((d) => `<li>${esc(d)}</li>`).join("");
-    $("[data-detail-env]", detailDlg).innerHTML = c.env.map((t) => `<span>${esc(t)}</span>`).join("");
-    openSheet(detailDlg, $("[data-sheet-close]", detailDlg));
-    track({ path: `detail/${i + 1}`, title: "프로젝트 자세히 보기", event: true });
+  /* ---------- 프로젝트 카드 펼치기 (아코디언) ---------- */
+  const toggleCard = (cardEl, open) => {
+    const btn = $(".more", cardEl), box = $(".card-more", cardEl);
+    if (!btn) return;
+    open = open ?? btn.getAttribute("aria-expanded") !== "true";
+    btn.setAttribute("aria-expanded", String(open));
+    btn.firstChild.textContent = open ? "접기 " : "맡은 일 보기 ";
+    box.hidden = !open;
+    cardEl.classList.toggle("open", open);
+    if (open) track({ path: `detail/${cardEl.id.replace("project-", "")}`, title: "프로젝트 펼치기", event: true });
   };
-  $$("[data-detail]").forEach((b) => b.addEventListener("click", () => showDetail(Number(b.dataset.detail))));
+  $$(".projects:not(.learning) .card").forEach((cardEl) => {
+    // 카드 어디를 눌러도 펼쳐지고, 키보드는 '맡은 일 보기' 버튼으로 연다. 안쪽 버튼·글자 선택은 그대로 둔다
+    cardEl.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ask]") || (e.target.closest("button") && !e.target.closest(".more"))) return;
+      if (String(getSelection()).length) return;
+      toggleCard(cardEl);
+    });
+  });
+  // 기술 지도·터미널에서 프로젝트를 고르면 그 카드로 이동해서 펼친다
+  const showDetail = (i) => {
+    const cardEl = $(`#project-${i + 1}`);
+    if (!cardEl) return;
+    toggleCard(cardEl, true);
+    cardEl.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    setTimeout(() => $(".more", cardEl)?.focus({ preventScroll: true }), reduced ? 0 : 400);
+  };
 
   /* ---------- 기술 ↔ 프로젝트 연결 지도 ---------- */
   // 'Java' 가 'JavaScript' 에 걸리지 않게, 기술 이름 바로 뒤가 글자가 아닐 때만 같은 기술로 본다
