@@ -27,23 +27,43 @@
   $(".stats").innerHTML = D.stats
     .map((s) => `<div class="stat"><dt>${esc(s.label)}</dt><dd>${esc(s.value + s.suffix)}</dd></div>`)
     .join("");
-  $(".skills").innerHTML = D.skills.map((s) => `<li>${esc(s)}</li>`).join("");
+  $(".skills").innerHTML = D.skills
+    .map((s, i) => `<li><button type="button" class="skill" aria-pressed="false" data-skill="${i}">${esc(s)}</button></li>`)
+    .join("");
 
-  // 링크가 있으면 <a>, 없으면 <article> 카드
-  const card = (p, i) => {
+  /* ---------- 프로젝트 ↔ 경력기술서 연결 ---------- */
+  // 카드 제목과 경력기술서 제목이 조금씩 달라서(괄호, 어순) 3글자 이상 단어가 2개 이상 겹치면 같은 프로젝트로 본다
+  const norm = (t) => String(t).toLowerCase().replace(/[\s()·]/g, "");
+  const detailOf = (p) => {
+    const words = p.title.split(/[\s()·]+/).filter((w) => w.length >= 3);
+    let best = null, score = 1;
+    for (const c of D.careerDetails || []) {
+      const t = norm(c.title);
+      const n = words.filter((w) => t.includes(norm(w))).length;
+      if (n > score) { best = c; score = n; }
+    }
+    return best;
+  };
+  const details = D.projects.map(detailOf);
+
+  // 링크가 있으면 <a>, 없으면 <article> 카드. 경력기술서가 있는 프로젝트는 '자세히 보기' 버튼을 단다
+  const card = (p, i, list) => {
     const meta = [p.period, p.org].filter(Boolean).map(esc).join(" · ");
     const right = p.status ? `<span class="badge">${esc(p.status)}</span>` : p.link ? '<span class="card-arrow">↗</span>' : "";
+    const more = list === "projects" && details[i]
+      ? `<button type="button" class="more" data-detail="${i}">맡은 일 자세히 보기 <span aria-hidden="true">→</span></button>`
+      : "";
     const inner = `
         <span class="card-top"><span>${String(i + 1).padStart(2, "0")}${meta ? ` <span class="card-meta">${meta}</span>` : ""}</span>${right}</span>
         <h3>${esc(p.title)}</h3>
         <p>${esc(p.summary || p.desc)}</p>
-        <div class="tags">${p.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>`;
+        <div class="tags">${p.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>${more}`;
     return p.link
       ? `<a class="card reveal" href="${esc(p.link)}" target="_blank" rel="noopener">${inner}</a>`
-      : `<article class="card reveal">${inner}</article>`;
+      : `<article class="card reveal" id="${list === "projects" ? `project-${i + 1}` : ""}">${inner}</article>`;
   };
-  $(".projects:not(.learning)").innerHTML = D.projects.map(card).join("");
-  $(".projects.learning").innerHTML = D.learning.map(card).join("");
+  $(".projects:not(.learning)").innerHTML = D.projects.map((p, i) => card(p, i, "projects")).join("");
+  $(".projects.learning").innerHTML = D.learning.map((p, i) => card(p, i, "learning")).join("");
 
   $(".creds-list").innerHTML = D.credentials
     .map((c) => `<li><span class="mono">${esc(c.year)}</span><b>${esc(c.title)}</b>${c.desc ? `<small>${esc(c.desc)}</small>` : ""}</li>`)
@@ -264,6 +284,134 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
   addEventListener("pageshow", closeAll); // 뒤로 가기로 돌아왔을 때 안내창 닫기
+
+  /* ---------- 공통: 아래에서 올라오는 창 (자세히 보기, 터미널) ---------- */
+  // <dialog> 의 showModal 이 뒤쪽을 막고, Esc 로 닫히고, 포커스를 창 안에 가둔다
+  const sheetOpener = new WeakMap();
+  const openSheet = (dlg, focusEl) => {
+    sheetOpener.set(dlg, document.activeElement);
+    dlg.showModal();
+    focusEl?.focus();
+  };
+  $$("dialog.sheet").forEach((dlg) => {
+    dlg.addEventListener("close", () => sheetOpener.get(dlg)?.focus?.());
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); }); // 바깥(어두운 곳) 누르면 닫기
+    $$("[data-sheet-close]", dlg).forEach((b) => b.addEventListener("click", () => dlg.close()));
+  });
+  // 창 안의 '물어보기' 버튼은 창을 닫고 챗봇으로 간다
+  $$("dialog.sheet [data-ask]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close(), { capture: true }));
+
+  /* ---------- 프로젝트 자세히 보기 ---------- */
+  const detailDlg = $("dialog.detail");
+  const showDetail = (i) => {
+    const p = D.projects[i], c = details[i];
+    if (!c) return;
+    $("[data-detail-cmd]", detailDlg).innerHTML = `<span class="prompt">$</span> cat projects/${String(i + 1).padStart(2, "0")}.md`;
+    $("[data-detail-title]", detailDlg).textContent = p.title;
+    $("[data-detail-meta]", detailDlg).textContent = [c.period || p.period, c.org || p.org].filter(Boolean).join(" · ");
+    $("[data-detail-duties]", detailDlg).innerHTML = c.duties.map((d) => `<li>${esc(d)}</li>`).join("");
+    $("[data-detail-env]", detailDlg).innerHTML = c.env.map((t) => `<span>${esc(t)}</span>`).join("");
+    openSheet(detailDlg, $("[data-sheet-close]", detailDlg));
+    track({ path: `detail/${i + 1}`, title: "프로젝트 자세히 보기", event: true });
+  };
+  $$("[data-detail]").forEach((b) => b.addEventListener("click", () => showDetail(Number(b.dataset.detail))));
+
+  /* ---------- 기술 ↔ 프로젝트 연결 지도 ---------- */
+  // 'Java' 가 'JavaScript' 에 걸리지 않게, 기술 이름 바로 뒤가 글자가 아닐 때만 같은 기술로 본다
+  const usesSkill = (skill, items) => {
+    const re = new RegExp("^" + skill.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-z])", "i");
+    return items.some((t) => re.test(String(t).trim()));
+  };
+  const noteOf = (skill) =>
+    (D.skillNotes || []).find((n) => n.skill.toLowerCase().split(/\s*·\s*/).some((part) => part === skill.toLowerCase()) || n.skill.toLowerCase() === skill.toLowerCase());
+  const skillInfo = $(".skill-info");
+  $$(".skill").forEach((b) =>
+    b.addEventListener("click", () => {
+      const on = b.getAttribute("aria-pressed") !== "true";
+      $$(".skill").forEach((x) => x.setAttribute("aria-pressed", String(x === b && on)));
+      $(".skills").classList.toggle("picking", on);
+      if (!on) { skillInfo.hidden = true; return; }
+      const skill = D.skills[Number(b.dataset.skill)];
+      const used = D.projects
+        .map((p, i) => ({ p, i }))
+        .filter(({ p, i }) => usesSkill(skill, [...p.tags, ...(details[i]?.env || [])]));
+      const note = noteOf(skill);
+      skillInfo.innerHTML = `
+        <p class="cmd"><span class="prompt">$</span> grep -r "${esc(skill)}" projects/</p>
+        ${used.length
+          ? `<ul class="hits">${used.map(({ p, i }) => `<li><button type="button" class="hit" data-detail="${i}">${esc(p.title)}<span class="mono">${esc(p.period || "")}</span></button></li>`).join("")}</ul>`
+          : '<p class="no-hit">대표 프로젝트에는 없고, 아래 메모의 경험이 있어요</p>'}
+        ${note ? `<p class="note"><b>어디까지</b> ${esc(note.did)}${note.level ? ` <span class="level">· ${esc(note.level)}</span>` : ""}</p>` : ""}`;
+      skillInfo.hidden = false;
+      $$("[data-detail]", skillInfo).forEach((h) => h.addEventListener("click", () => showDetail(Number(h.dataset.detail))));
+      track({ path: `skill/${skill}`, title: "기술 지도", event: true });
+    })
+  );
+
+  /* ---------- 이스터에그: 미니 터미널 ---------- */
+  const termDlg = $("dialog.term");
+  const termOut = $("[data-term-out]");
+  const termIn = $("[data-term-in]");
+  const print = (html, cls = "") => termOut.insertAdjacentHTML("beforeend", `<div class="${cls}">${html}</div>`);
+  const pad = (s, n) => s + " ".repeat(Math.max(1, n - s.length));
+  const commands = {
+    help: () => print(
+      ["whoami", "ls projects", "cat projects/01", "cat skills", "cat contact", "ask", "clear", "exit"]
+        .map((c) => `<span class="cmd-name">${pad(c, 18)}</span>`).join("<br>") +
+      '<br><span class="dim">↑ 키로 이전 명령, Tab 으로 자동 완성</span>'
+    ),
+    whoami: () => print(`${esc(D.name)} (${esc(D.nameEn)})<br><span class="dim">${esc(D.tagline)}</span>`),
+    "ls projects": () => print(D.projects.map((p, i) => `<span class="cmd-name">${String(i + 1).padStart(2, "0")}</span>  ${esc(p.title)}  <span class="dim">${esc(p.period || "")}</span>`).join("<br>") + '<br><span class="dim">cat projects/01 처럼 번호로 열어 보세요</span>'),
+    "cat skills": () => print(D.skills.map(esc).join("  ·  ")),
+    "cat contact": () => print(`email   ${esc(D.contact.email)}<br>${D.contact.links.map((l) => `${esc(pad(l.label.toLowerCase(), 8))}${esc(l.url)}`).join("<br>")}`),
+    ask: () => { termDlg.close(); $("[data-ask]").click(); },
+    clear: () => (termOut.innerHTML = ""),
+    exit: () => termDlg.close(),
+    ls: () => commands["ls projects"](),
+    "sudo hire jinyong": () => print('권한 확인 중… <span class="ok">승인</span>. 연락은 <span class="cmd-name">cat contact</span> 또는 <span class="cmd-name">ask</span> 로 해 주세요 🙂'),
+  };
+  const cmdHistory = [];
+  let hIdx = 0;
+  const run = (raw) => {
+    const cmd = raw.trim().replace(/\s+/g, " ");
+    print(`<span class="prompt">$</span> ${esc(cmd)}`, "echo");
+    if (!cmd) return;
+    cmdHistory.push(cmd); hIdx = cmdHistory.length;
+    const m = cmd.match(/^cat projects\/0?(\d+)(\.md)?$/);
+    if (m) {
+      const i = Number(m[1]) - 1, p = D.projects[i], c = details[i];
+      if (!p) return print(`cat: projects/${esc(m[1])}: 그런 프로젝트가 없어요 (ls projects)`, "err");
+      print(`<b>${esc(p.title)}</b>  <span class="dim">${esc(p.period || "")}</span><br>` +
+        (c ? c.duties.map((d) => `- ${esc(d)}`).join("<br>") : esc(p.desc)));
+      return;
+    }
+    (commands[cmd.toLowerCase()] || (() => print(`${esc(cmd.split(" ")[0])}: 없는 명령이에요. help 를 입력해 보세요`, "err")))();
+    termOut.scrollTop = termOut.scrollHeight;
+  };
+  const openTerm = () => {
+    if (!termOut.childElementCount) {
+      print(`${esc(D.nameEn)} 의 포트폴리오에 오신 걸 환영해요. <span class="cmd-name">help</span> 를 입력해 보세요`, "dim");
+    }
+    openSheet(termDlg, termIn);
+    track({ path: "terminal", title: "터미널 열기", event: true });
+  };
+  $("[data-term-form]").addEventListener("submit", (e) => { e.preventDefault(); run(termIn.value); termIn.value = ""; termOut.scrollTop = termOut.scrollHeight; });
+  termIn.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" && cmdHistory.length) { e.preventDefault(); hIdx = Math.max(0, hIdx - 1); termIn.value = cmdHistory[hIdx]; }
+    else if (e.key === "ArrowDown" && cmdHistory.length) { e.preventDefault(); hIdx = Math.min(cmdHistory.length, hIdx + 1); termIn.value = cmdHistory[hIdx] || ""; }
+    else if (e.key === "Tab" && termIn.value) {
+      const hit = Object.keys(commands).find((c) => c.startsWith(termIn.value.toLowerCase()) && c !== "sudo hire jinyong");
+      if (hit) { e.preventDefault(); termIn.value = hit; }
+    }
+  });
+  $("[data-term-open]").addEventListener("click", openTerm);
+  // ` 키로 열기 (글을 입력하는 중이거나 다른 창이 열려 있을 때는 무시)
+  addEventListener("keydown", (e) => {
+    if (e.key !== "`" || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.closest?.("input, textarea, [contenteditable]") || document.querySelector("dialog[open]") || !gate.hidden || !wake.hidden) return;
+    e.preventDefault();
+    openTerm();
+  });
 
   /* ---------- 직함 타이핑: 두 바퀴 돌고 첫 직함에서 멈춘다 ---------- */
   const typed = $(".typed");

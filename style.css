@@ -252,6 +252,94 @@ a.card:hover .card-arrow { color: var(--text); }
 .gate-form input[aria-invalid="true"] { border-color: #e5484d; }
 .gate-link { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 
+/* ---------- 기술 지도 ---------- */
+.skill-map { margin-top: 48px; }
+.skill-hint { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.skills { margin-top: 0; }
+.skills li { padding: 0; border: 0; background: none; }
+.skill {
+  font-family: var(--mono); font-size: 13px; color: var(--text-2); cursor: pointer;
+  min-height: 36px; padding: 0 12px; border-radius: 6px; background: var(--card); border: 1px solid var(--line);
+  transition: color 150ms var(--ease), border-color 150ms var(--ease), opacity 150ms var(--ease), box-shadow 180ms var(--ease);
+}
+.skill:hover { color: var(--text); border-color: var(--line-strong); }
+.skills.picking .skill { opacity: 0.45; }
+.skills.picking .skill[aria-pressed="true"] { opacity: 1; color: var(--text); border-color: var(--accent); box-shadow: 0 0 14px -4px var(--glow); }
+.skill-info {
+  margin-top: 16px; padding: 20px; border-radius: 12px; background: var(--card); border: 1px solid var(--line);
+  display: grid; gap: 12px;
+}
+.hits { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+.hit {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border-radius: 8px;
+  font: inherit; font-size: 15px; color: var(--text); background: var(--raised); border: 1px solid var(--line); cursor: pointer;
+  transition: border-color 150ms var(--ease);
+}
+.hit:hover { border-color: var(--accent); }
+.hit .mono { font-size: 12px; color: var(--muted); }
+.no-hit { color: var(--text-2); font-size: 14px; }
+.note { font-size: 15px; color: var(--text-2); }
+.note b { color: var(--accent); font-weight: 500; margin-right: 6px; font-size: 13px; }
+.note .level { color: var(--muted); }
+
+/* 카드의 '자세히 보기' */
+.more {
+  align-self: flex-start; margin-top: 16px; min-height: 44px; padding: 0; background: none; border: 0; cursor: pointer;
+  font: inherit; font-size: 14px; color: var(--text-2); border-bottom: 1px solid transparent; transition: color 150ms var(--ease);
+}
+.more:hover { color: var(--accent); }
+
+/* ---------- 아래에서 올라오는 창 (자세히 보기, 터미널) ---------- */
+dialog.sheet {
+  margin: auto auto 0; width: min(720px, 100%); max-width: 100%; max-height: min(80svh, 720px); padding: 0;
+  color: var(--text); background: var(--card); border: 1px solid var(--line-strong); border-bottom: 0;
+  border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px -12px rgba(0, 0, 0, 0.7);
+  display: none; flex-direction: column; overflow: hidden;
+}
+dialog.sheet[open] { display: flex; animation: sheet-in 300ms var(--ease); }
+dialog.sheet::backdrop { background: rgba(7, 8, 13, 0.7); }
+@keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } }
+@media (min-width: 761px) { dialog.sheet { margin: auto; border-bottom: 1px solid var(--line-strong); border-radius: 16px; } }
+.sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+.sheet-head h3 { font-size: 20px; font-weight: 500; line-height: 1.4; margin-top: 4px; }
+.sheet-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.sheet-close {
+  flex: none; width: 44px; height: 44px; border-radius: 8px; background: none; border: 1px solid var(--line);
+  color: var(--text-2); font-size: 16px; cursor: pointer;
+}
+.sheet-close:hover { color: var(--text); background: var(--raised); }
+.sheet-body { padding: 20px 24px 24px; overflow: auto; }
+.sheet-body h4 { font-size: 13px; font-weight: 500; color: var(--muted); margin: 0 0 10px; }
+.sheet-body h4 + * { margin-bottom: 24px; }
+.duties { list-style: none; display: grid; gap: 8px; }
+.duties li { position: relative; padding-left: 18px; color: var(--text-2); font-size: 15px; }
+.duties li::before { content: "›"; position: absolute; left: 0; color: var(--accent); font-family: var(--mono); }
+.sheet-body .tags { margin-top: 0; }
+.sheet-ask { margin-top: 4px; }
+
+/* 터미널 */
+dialog.term { background: var(--deep); }
+.term .sheet-head h3 { font-size: 13px; color: var(--muted); margin: 0; align-self: center; }
+.term-out { padding: 16px 24px; overflow: auto; min-height: 220px; font-size: 13px; line-height: 22px; color: var(--text-2); white-space: pre-wrap; word-break: break-word; }
+.term-out .echo { color: var(--text); margin-top: 8px; }
+.term-out .dim { color: var(--muted); }
+.term-out .err { color: #e5484d; }
+.term-out .ok, .term-out .cmd-name { color: var(--accent); }
+.term-form { display: flex; align-items: center; gap: 8px; padding: 8px 24px 16px; border-top: 1px solid var(--line); }
+.term-form input {
+  flex: 1; min-width: 0; height: 44px; font: inherit; font-size: 14px; color: var(--text);
+  background: none; border: 0; outline: none; caret-color: var(--accent);
+}
+.term-form:focus-within { border-top-color: var(--accent); }
+
+/* 바닥글의 터미널 열기 */
+.term-open {
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; margin: 0 8px 12px 0;
+  font-size: 13px; color: var(--text-2); background: none; border: 1px solid var(--line-strong); border-radius: 8px; cursor: pointer;
+}
+.term-open:hover { color: var(--text); border-color: var(--accent); }
+kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--muted); }
+
 /* ---------- 접근성 ---------- */
 :where(a, button, input, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 .noscript-list { list-style: none; display: grid; gap: 8px; color: var(--text-2); }

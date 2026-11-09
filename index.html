@@ -82,7 +82,11 @@
         <div class="about-text reveal"><p>요구사항 분석부터 설계, 개발, 배포, 운영까지 서비스 전체를 책임지는 개발자입니다.</p></div>
         <dl class="stats reveal"></dl>
       </div>
-      <ul class="skills reveal" aria-label="기술 스택"></ul>
+      <div class="skill-map reveal">
+        <p class="skill-hint">기술을 누르면 그 기술을 쓴 프로젝트와 어디까지 해 봤는지가 나와요</p>
+        <ul class="skills" aria-label="기술 스택"></ul>
+        <div class="skill-info" aria-live="polite" hidden></div>
+      </div>
     </section>
 
     <section id="projects" class="section">
@@ -159,7 +163,40 @@
     </div>
   </div>
 
+  <!-- 프로젝트 자세히 보기: 경력기술서의 개발환경과 담당업무 -->
+  <dialog class="sheet detail" aria-labelledby="detail-title">
+    <div class="sheet-head">
+      <div>
+        <p class="cmd" data-detail-cmd></p>
+        <h3 id="detail-title" data-detail-title></h3>
+        <p class="sheet-meta mono" data-detail-meta></p>
+      </div>
+      <button type="button" class="sheet-close" data-sheet-close aria-label="닫기">✕</button>
+    </div>
+    <div class="sheet-body">
+      <h4>맡은 일</h4>
+      <ul class="duties" data-detail-duties></ul>
+      <h4>개발환경</h4>
+      <div class="tags" data-detail-env></div>
+      <button type="button" class="btn btn-primary sheet-ask" data-ask>💬 이 프로젝트에 대해 더 물어보기</button>
+    </div>
+  </dialog>
+
+  <!-- 이스터에그: 미니 터미널 -->
+  <dialog class="sheet term" aria-labelledby="term-title">
+    <div class="sheet-head">
+      <h3 id="term-title" class="mono">jinyong@portfolio: ~</h3>
+      <button type="button" class="sheet-close" data-sheet-close aria-label="닫기">✕</button>
+    </div>
+    <div class="term-out mono" data-term-out aria-live="polite"></div>
+    <form class="term-form mono" data-term-form>
+      <label for="term-in"><span class="prompt">$</span></label>
+      <input id="term-in" data-term-in autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="명령 입력 (help 를 입력해 보세요)" />
+    </form>
+  </dialog>
+
   <footer class="footer">
+    <button type="button" class="term-open mono" data-term-open><span class="prompt">$</span> 터미널 열기<kbd>`</kbd></button>
     <button type="button" class="still-toggle" data-still aria-pressed="false">⏸ 움직임 멈추기</button>
     <p class="mono">© <span data-year></span> <span data-name-en>Jinyong Kim</span></p>
     <p class="visit-note">방문 통계는 GoatCounter로 집계합니다 (쿠키·IP 저장 없음)</p>
