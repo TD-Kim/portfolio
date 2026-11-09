@@ -31,11 +31,23 @@ a { color: inherit; text-decoration: none; }
 /* ---------- 시그니처: 터미널 프롬프트 ---------- */
 .cmd { font-family: var(--mono); font-size: 13px; line-height: 20px; color: var(--muted); }
 .prompt { color: var(--accent); }
+/* 타이핑되는 직함 옆 커서. 타이핑이 끝나면 사라진다 */
 .caret {
-  display: inline-block; width: 8px; height: 16px; margin-left: 4px; vertical-align: -3px;
-  background: var(--accent); animation: blink 1s steps(1) 6 forwards; /* 여섯 번만 깜빡이고 켜진 채로 멈춘다 */
+  display: inline-block; width: 8px; height: 1.1em; margin-left: 4px; vertical-align: -0.15em;
+  background: var(--accent); animation: blink 1s steps(1) infinite;
 }
+.caret.done { animation: none; opacity: 0; }
 @keyframes blink { 50% { opacity: 0; } }
+
+/* 배경: 천천히 움직이는 점과 선 (강조색을 아주 옅게) */
+#bg { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
+.still-toggle {
+  font: inherit; font-size: 13px; color: var(--muted); background: none; cursor: pointer;
+  border: 1px solid var(--line-strong); border-radius: 8px; height: 40px; padding: 0 14px; margin-bottom: 12px;
+  transition: color 150ms var(--ease), border-color 150ms var(--ease);
+}
+.still-toggle:hover { color: var(--text); }
+.still .caret { animation: none; }
 
 /* ---------- 상단 바 ---------- */
 .nav {
@@ -62,7 +74,7 @@ a { color: inherit; text-decoration: none; }
   display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
 }
 .hero-title { font-size: 64px; line-height: 1.05; font-weight: 600; letter-spacing: -0.02em; margin-top: 16px; }
-.hero-role { font-family: var(--mono); font-size: 16px; color: var(--text-2); margin-top: 12px; }
+.hero-role { font-family: var(--mono); font-size: 16px; color: var(--text-2); margin-top: 12px; min-height: 1.7em; }
 .hero-tagline { font-size: 18px; line-height: 30px; color: var(--text-2); margin-top: 24px; max-width: 36rem; }
 .hero-cta { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
 
@@ -73,7 +85,7 @@ a { color: inherit; text-decoration: none; }
 }
 .btn:active { transform: scale(0.98); }
 .btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25); }
-.btn-primary:hover { background: #f5c06a; }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
 .btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--line-strong); }
 .btn-ghost:hover { background: var(--raised); }
 
@@ -84,7 +96,7 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.6);
   transition: border-color 150ms var(--ease);
 }
-.chat-preview:hover { border-color: rgba(242, 178, 76, 0.4); }
+.chat-preview:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .chat-head {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--deep);
@@ -201,7 +213,7 @@ a.card:hover .card-arrow { color: var(--text); }
   box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transition: background-color 150ms var(--ease), transform 120ms var(--ease);
 }
-.ask-fab:hover { background: #f5c06a; }
+.ask-fab:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
 .ask-fab:active { transform: scale(0.98); }
 
 /* ---------- 초대 코드·이동 안내창 ---------- */

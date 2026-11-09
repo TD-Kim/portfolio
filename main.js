@@ -7,12 +7,16 @@
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 움직임 멈추기: 동작 줄이기 설정이 없어도 누구나 버튼으로 멈출 수 있다 (WCAG 2.2.2)
+  let still = reduced;
+  try { still = still || localStorage.getItem("portfolio-still") === "1"; } catch {}
+  const html = document.documentElement;
+  html.classList.toggle("still", still);
 
   /* ---------- render content ---------- */
   document.title = `${D.name} | Portfolio`;
   $$("[data-name]").forEach((el) => (el.textContent = D.name));
   $$("[data-name-en]").forEach((el) => (el.textContent = D.nameEn));
-  $("[data-role]").textContent = D.roles.slice(0, 2).join(" · ");
   $("[data-tagline]").textContent = D.tagline;
   $("[data-year]").textContent = new Date().getFullYear();
 
@@ -260,6 +264,101 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
   addEventListener("pageshow", closeAll); // 뒤로 가기로 돌아왔을 때 안내창 닫기
+
+  /* ---------- 직함 타이핑: 두 바퀴 돌고 첫 직함에서 멈춘다 ---------- */
+  const typed = $(".typed");
+  const caret = $(".caret");
+  const settle = () => { typed.textContent = D.roles[0]; caret.classList.add("done"); };
+  if (still) settle();
+  else {
+    let r = 0, c = 0, del = false, rounds = 0;
+    const tick = () => {
+      if (html.classList.contains("still")) return settle();
+      const word = D.roles[r];
+      c += del ? -1 : 1;
+      typed.textContent = word.slice(0, c);
+      let delay = del ? 40 : 90;
+      if (!del && c === word.length) {
+        if (r === 0 && rounds >= 2) return caret.classList.add("done");
+        del = true; delay = 1600;
+      } else if (del && c === 0) {
+        del = false; r = (r + 1) % D.roles.length; delay = 300;
+        if (r === 0) rounds++;
+      }
+      setTimeout(tick, delay);
+    };
+    tick();
+  }
+
+  /* ---------- 배경: 천천히 움직이는 점과 선. 색은 강조색(--accent)을 옅게 ---------- */
+  const canvas = $("#bg");
+  const ctx = canvas.getContext("2d");
+  const accentRgb = () => {
+    const hex = getComputedStyle(html).getPropertyValue("--accent").trim().replace("#", "");
+    const n = parseInt(hex.length === 3 ? hex.replace(/./g, "$&$&") : hex, 16);
+    return Number.isNaN(n) ? "242,178,76" : `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  };
+  let rgb = accentRgb(), frame = 0;
+  let W, H, pts = [], mouse = { x: -9999, y: -9999 };
+  const resize = () => {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.min(Math.floor((W * H) / 16000), 90);
+    pts = Array.from({ length: n }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+    }));
+  };
+  addEventListener("resize", resize);
+  addEventListener("pointermove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+  resize();
+  const LINK = 130;
+  const draw = () => {
+    if (++frame % 30 === 0) rgb = accentRgb(); // 강조색이 바뀌면 따라간다
+    ctx.clearRect(0, 0, W, H);
+    for (const p of pts) {
+      if (!html.classList.contains("still")) {
+        const dx = p.x - mouse.x, dy = p.y - mouse.y, d = Math.hypot(dx, dy);
+        if (d < 140 && d > 0) { p.x += (dx / d) * 1.2; p.y += (dy / d) * 1.2; } // 마우스 피하기
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > W) p.vx *= -1;
+        if (p.y < 0 || p.y > H) p.vy *= -1;
+      }
+      ctx.fillStyle = `rgba(${rgb},0.55)`;
+      ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+    }
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const a = pts[i], b = pts[j];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d < LINK) {
+          ctx.strokeStyle = `rgba(${rgb},${(1 - d / LINK) * 0.22})`;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+    }
+    if (!html.classList.contains("still")) requestAnimationFrame(draw);
+  };
+  draw();
+
+  /* ---------- 움직임 멈추기 버튼 ---------- */
+  const toggle = $("[data-still]");
+  const syncToggle = () => {
+    const on = html.classList.contains("still");
+    toggle.setAttribute("aria-pressed", String(on));
+    toggle.textContent = on ? "▶ 움직임 다시 켜기" : "⏸ 움직임 멈추기";
+  };
+  toggle.addEventListener("click", () => {
+    const on = !html.classList.contains("still");
+    html.classList.toggle("still", on);
+    try { localStorage.setItem("portfolio-still", on ? "1" : "0"); } catch {}
+    if (on) settle();
+    else requestAnimationFrame(draw);
+    syncToggle();
+  });
+  syncToggle();
 
   /* ---------- 등장 효과: 섹션마다 한 번, 짧게 ---------- */
   if (reduced || !("IntersectionObserver" in window)) {

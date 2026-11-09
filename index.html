@@ -31,6 +31,7 @@
   <script>document.documentElement.classList.replace("no-js", "js")</script>
 </head>
 <body>
+  <canvas id="bg" aria-hidden="true"></canvas>
   <header class="nav">
     <div class="nav-inner">
       <a href="#top" class="logo"><span class="prompt" aria-hidden="true">~</span><span data-name-en>Jinyong Kim</span></a>
@@ -47,9 +48,9 @@
   <main id="top">
     <section class="hero">
       <div class="hero-text">
-        <p class="cmd"><span class="prompt">$</span> whoami<span class="caret" aria-hidden="true"></span></p>
+        <p class="cmd"><span class="prompt">$</span> whoami</p>
         <h1 class="hero-title" data-name>김진용</h1>
-        <p class="hero-role" data-role>Backend Developer</p>
+        <p class="hero-role"><span class="typed">Backend Developer</span><span class="caret" aria-hidden="true"></span></p>
         <p class="hero-tagline" data-tagline>공공기관과 기업의 시스템을 5년 넘게 설계하고 만들어 온 백엔드 개발자입니다. 지금은 AI 에이전트를 공부하고 있습니다.</p>
         <div class="hero-cta">
           <button type="button" class="btn btn-primary" data-ask>💬 저에 대해 물어보세요</button>
@@ -158,6 +159,7 @@
   </div>
 
   <footer class="footer">
+    <button type="button" class="still-toggle" data-still aria-pressed="false">⏸ 움직임 멈추기</button>
     <p class="mono">© <span data-year></span> <span data-name-en>Jinyong Kim</span></p>
     <p class="visit-note">방문 통계는 GoatCounter로 집계합니다 (쿠키·IP 저장 없음)</p>
   </footer>
