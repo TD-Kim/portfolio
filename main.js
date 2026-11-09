@@ -60,7 +60,7 @@
     const right = p.status ? `<span class="badge">${esc(p.status)}</span>` : p.link ? '<span class="card-arrow">↗</span>' : "";
     const c = list === "projects" && details[i];
     const more = c
-      ? `<button type="button" class="more" aria-expanded="false" aria-controls="more-${i}">맡은 일 보기 <span class="chev" aria-hidden="true">⌄</span></button>
+      ? `<button type="button" class="more" aria-expanded="false" aria-controls="more-${i}">맡은 일 보기<svg class="chev" aria-hidden="true" viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
          <div class="card-more" id="more-${i}" hidden>
            <p class="cmd"><span class="prompt">$</span> head -3 projects/${String(i + 1).padStart(2, "0")}.md</p>
            <ul class="duties">${highlights(c).map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
@@ -322,7 +322,7 @@
     if (!btn) return;
     open = open ?? btn.getAttribute("aria-expanded") !== "true";
     btn.setAttribute("aria-expanded", String(open));
-    btn.firstChild.textContent = open ? "접기 " : "맡은 일 보기 ";
+    btn.firstChild.textContent = open ? "접기" : "맡은 일 보기";
     box.hidden = !open;
     cardEl.classList.toggle("open", open);
     if (open) track({ path: `detail/${cardEl.id.replace("project-", "")}`, title: "프로젝트 펼치기", event: true });
@@ -353,12 +353,24 @@
   const noteOf = (skill) =>
     (D.skillNotes || []).find((n) => n.skill.toLowerCase().split(/\s*·\s*/).some((part) => part === skill.toLowerCase()) || n.skill.toLowerCase() === skill.toLowerCase());
   const skillInfo = $(".skill-info");
+  const clearSkill = () => {
+    $$(".skill").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    $(".skills").classList.remove("picking");
+    skillInfo.hidden = true;
+  };
+  // 기술 목록·결과 상자 바깥을 누르거나 Esc 를 누르면 선택이 풀린다
+  document.addEventListener("click", (e) => {
+    if (!skillInfo.hidden && !e.target.closest(".skills, .skill-info")) clearSkill();
+  });
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !skillInfo.hidden && !document.querySelector("dialog[open]")) clearSkill();
+  });
   $$(".skill").forEach((b) =>
     b.addEventListener("click", () => {
       const on = b.getAttribute("aria-pressed") !== "true";
-      $$(".skill").forEach((x) => x.setAttribute("aria-pressed", String(x === b && on)));
-      $(".skills").classList.toggle("picking", on);
-      if (!on) { skillInfo.hidden = true; return; }
+      if (!on) return clearSkill();
+      $$(".skill").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      $(".skills").classList.add("picking");
       const skill = D.skills[Number(b.dataset.skill)];
       const used = D.projects
         .map((p, i) => ({ p, i }))

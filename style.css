@@ -266,6 +266,7 @@ a.card:hover .card-arrow { color: var(--text); }
 .skill:hover { color: var(--text); border-color: var(--line-strong); }
 .skills.picking .skill { opacity: 0.45; }
 .skills.picking .skill[aria-pressed="true"] { opacity: 1; color: var(--text); border-color: var(--accent); box-shadow: 0 0 14px -4px var(--glow); }
+.skill-info[hidden] { display: none; } /* display: grid 가 hidden 을 덮지 않게 */
 .skill-info {
   margin-top: 16px; padding: 20px; border-radius: 12px; background: var(--card); border: 1px solid var(--line);
   display: grid; gap: 12px;
@@ -292,7 +293,7 @@ a.card:hover .card-arrow { color: var(--text); }
   background: none; border: 0; cursor: pointer; font: inherit; font-size: 14px; color: var(--text-2); transition: color 150ms var(--ease);
 }
 .more:hover, .card:hover .more { color: var(--accent); }
-.chev { display: inline-block; font-size: 16px; line-height: 1; transition: transform 180ms var(--ease); }
+.chev { display: block; flex: none; transition: transform 180ms var(--ease); } /* 글자 화살표는 아래로 처져서 SVG 로 가운데 맞춤 */
 .card.open .chev { transform: rotate(180deg); }
 .card-more { display: grid; gap: 12px; padding-top: 16px; margin-top: 4px; border-top: 1px solid var(--line); cursor: default; }
 .card-more[hidden] { display: none; }
