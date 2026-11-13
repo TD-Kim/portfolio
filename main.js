@@ -509,7 +509,8 @@
     const n = parseInt(hex.length === 3 ? hex.replace(/./g, "$&$&") : hex, 16);
     return Number.isNaN(n) ? "242,178,76" : `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
   };
-  let rgb = accentRgb(), frame = 0;
+  const dotAlpha = () => parseFloat(getComputedStyle(html).getPropertyValue("--dot-alpha")) || 0.55;
+  let rgb = accentRgb(), alpha = dotAlpha(), frame = 0;
   let W, H, pts = [], mouse = { x: -9999, y: -9999 };
   const resize = () => {
     const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -527,7 +528,7 @@
   resize();
   const LINK = 130;
   const draw = () => {
-    if (++frame % 30 === 0) rgb = accentRgb(); // 강조색이 바뀌면 따라간다
+    if (++frame % 30 === 0) { rgb = accentRgb(); alpha = dotAlpha(); } // 강조색·테마가 바뀌면 따라간다
     ctx.clearRect(0, 0, W, H);
     for (const p of pts) {
       if (!html.classList.contains("still")) {
@@ -537,7 +538,7 @@
         if (p.x < 0 || p.x > W) p.vx *= -1;
         if (p.y < 0 || p.y > H) p.vy *= -1;
       }
-      ctx.fillStyle = `rgba(${rgb},0.55)`;
+      ctx.fillStyle = `rgba(${rgb},${alpha})`;
       ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
     }
     for (let i = 0; i < pts.length; i++) {
@@ -545,7 +546,7 @@
         const a = pts[i], b = pts[j];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
         if (d < LINK) {
-          ctx.strokeStyle = `rgba(${rgb},${(1 - d / LINK) * 0.22})`;
+          ctx.strokeStyle = `rgba(${rgb},${(1 - d / LINK) * alpha * 0.4})`;
           ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         }
       }
@@ -553,6 +554,27 @@
     if (!html.classList.contains("still")) requestAnimationFrame(draw);
   };
   draw();
+
+  /* ---------- 밝은/어두운 테마 전환 ---------- */
+  const themeBtn = $("[data-theme-toggle]");
+  const themeMeta = $('meta[name="theme-color"]');
+  const syncTheme = () => {
+    const light = html.dataset.theme === "light";
+    themeBtn.setAttribute("aria-pressed", String(light));
+    themeBtn.setAttribute("aria-label", light ? "어두운 테마로 바꾸기" : "밝은 테마로 바꾸기");
+    if (themeMeta) themeMeta.content = light ? "#f5f7fa" : "#0b0d14";
+  };
+  themeBtn.addEventListener("click", () => {
+    const light = html.dataset.theme !== "light";
+    if (light) html.dataset.theme = "light";
+    else delete html.dataset.theme;
+    try { localStorage.setItem("portfolio-theme", light ? "light" : "dark"); } catch {}
+    syncTheme();
+    rgb = accentRgb(); alpha = dotAlpha();
+    if (html.classList.contains("still")) draw(); // 멈춘 상태여도 배경 색은 바로 바꾼다
+    track({ path: `theme/${light ? "light" : "dark"}`, title: "테마 전환", event: true });
+  });
+  syncTheme();
 
   /* ---------- 움직임 멈추기 버튼 ---------- */
   const toggle = $("[data-still]");
