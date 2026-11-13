@@ -929,6 +929,16 @@ def fix_bold(text: str) -> str:
     return _BOLD.sub(fix, text)
 
 
+def invite_status(info: dict[str, Any], today: str) -> str:
+    """관리자 목록에 보여 줄 초대 상태: "revoked"(막음) / "expired"(끝남) / "active"(사용 중).
+    마감일은 그날 끝까지 쓸 수 있으므로 today(한국 날짜, YYYY-MM-DD)가 마감일보다 뒤여야 끝난 것이다."""
+    if info.get("revoked"):
+        return "revoked"
+    if (info.get("expires") or "") < today:
+        return "expired"
+    return "active"
+
+
 def mask_contacts(text: str) -> str:
     """기록에 남기기 전에 이메일 주소와 전화번호를 가린다."""
     text = _EMAIL_RE.sub("[이메일 가림]", text or "")
@@ -943,7 +953,7 @@ class ConversationLogger:
     - 이메일·전화번호는 가려서 저장한다.
     """
 
-    API = "https://api.github.com"
+    API = os.environ.get("LOG_API_URL", "https://api.github.com")  # 테스트 때만 가짜 서버로 바꾼다
 
     def __init__(self, token: str, repo: str, branch: str = "main", http: Callable[..., Any] | None = None,
                  clock: Callable[[], float] = time.time, background: bool = True):
@@ -1128,6 +1138,20 @@ class InviteRegistry:
             return True
 
         return self._mutate(change, f"invite: {'revoke' if revoked else 'restore'} {invite_id}")
+
+    def extend(self, invite_id: str, expires: str) -> bool:
+        """사용 기간을 바꾼다. 짧은 코드에는 마감일이 들어 있어서 새 코드가 나오고(같은 id·이름·질문 수),
+        예전 코드는 원래 마감일에 끝난다."""
+        if not DATE_RE.match(expires or ""):
+            return False
+
+        def change(items: dict[str, dict[str, Any]]) -> bool:
+            if invite_id not in items or items[invite_id].get("deleted"):
+                return False
+            items[invite_id].update(expires=expires, changed=self._now())
+            return True
+
+        return self._mutate(change, f"invite: extend {invite_id} to {expires}")
 
     def delete(self, invite_id: str) -> bool:
         """목록에서 숨기고 코드도 막는다. 기록은 남겨서 다시 같은 id 를 쓰지 않게 한다."""

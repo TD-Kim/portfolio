@@ -7,7 +7,9 @@
   <script>
     if (new URLSearchParams(location.search).has("admin")) {
       document.documentElement.style.visibility = "hidden";
-      location.replace("https://portfolio-c8vetzvd3jbl4tpdkdfjwx.streamlit.app/?admin");
+      var light = false;
+      try { light = localStorage.getItem("portfolio-theme") === "light"; } catch (e) {}
+      location.replace("https://portfolio-c8vetzvd3jbl4tpdkdfjwx.streamlit.app/?admin&embed_options=" + (light ? "light_theme" : "dark_theme"));
     }
   </script>
   <title>김진용 | Backend Developer</title>

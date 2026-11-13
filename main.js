@@ -248,6 +248,8 @@
   const chatUrlFor = (c) => {
     const u = new URL(D.chatbotUrl);
     if (c) u.searchParams.set("code", c);
+    // 사이트에서 고른 테마로 챗봇도 연다 (Streamlit 은 embed_options 로 밝은/어두운 테마를 고를 수 있다)
+    u.searchParams.set("embed_options", html.dataset.theme === "light" ? "light_theme" : "dark_theme");
     return u.href;
   };
   $("[data-gate-request]").href =

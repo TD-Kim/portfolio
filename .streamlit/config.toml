@@ -1,9 +1,33 @@
+# 포트폴리오 사이트와 같은 색: 어두운 잉크색 바탕 + 틸 강조 (기본), 밝은 테마는 종이색 바탕
+# 사이트에서 밝은 테마를 고르면 챗봇 주소에 ?embed_options=light_theme 를 붙여 밝은 테마로 연다.
 [theme]
 base = "dark"
-primaryColor = "#7c5cff"
-backgroundColor = "#07070d"
-secondaryBackgroundColor = "#14141f"
-textColor = "#ecebf5"
+primaryColor = "#3ecfbf"
+backgroundColor = "#0b0d14"
+secondaryBackgroundColor = "#11141c"
+textColor = "#eef0f5"
+borderColor = "#262b36"
+linkColor = "#3ecfbf"
+blueColor = "#3ecfbf"   # 안내 상자(st.info)도 틸 계열로
+baseRadius = "10px"
+
+[theme.dark]
+blueColor = "#3ecfbf"
+primaryColor = "#3ecfbf"
+backgroundColor = "#0b0d14"
+secondaryBackgroundColor = "#11141c"
+textColor = "#eef0f5"
+borderColor = "#262b36"
+linkColor = "#3ecfbf"
+
+[theme.light]
+blueColor = "#0a7d72"
+primaryColor = "#0a7d72"
+backgroundColor = "#f5f7fa"
+secondaryBackgroundColor = "#eceff4"
+textColor = "#111827"
+borderColor = "#d5dae3"
+linkColor = "#0a7d72"
 
 [server]
 headless = true
