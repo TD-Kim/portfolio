@@ -39,6 +39,7 @@ from agent import (  # noqa: E402
     AccessControl,
     build_agent,
     fix_bold,
+    invite_status,
     parse_access_codes,
     resolve_api_key,
     InviteRegistry,
@@ -89,15 +90,15 @@ st.markdown(
     """
 <style>
 .block-container { padding-top: 4.5rem; max-width: 760px; }
-.hero-title {
-  font-size: 2.2rem !important; font-weight: 800; letter-spacing: -0.03em; margin: 0; line-height: 1.25;
-  background: linear-gradient(120deg, #7c5cff, #00d4ff 50%, #ff4ecd);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.hero-sub { color: #9a98b0; margin: 0.25rem 0 1.4rem; }
-.hero-sub b { color: #ecebf5; }
-div[data-testid="stButton"] button { border-radius: 999px; width: 100%; text-align: left; }
-.foot { color: #8e8ca6; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; }
+.hero-title { font-size: 2rem !important; font-weight: 600; letter-spacing: -0.02em; margin: 0; line-height: 1.25; }
+/* 색은 테마(.streamlit/config.toml)의 글자색을 그대로 쓰고, 흐린 글자는 투명도로 만든다 → 밝은·어두운 테마 모두 맞음 */
+.hero-sub { margin: 0.25rem 0 1.4rem; }
+.hero-sub b { font-weight: 500; }
+.hero-sub .dim, .foot { opacity: 0.68; }
+div[data-testid="stButton"] button { width: 100%; text-align: left; }
+.foot { font-size: 0.8rem; text-align: center; margin-top: 0.5rem; }
+/* 한글은 단어 중간에서 줄을 바꾸지 않는다 */
+[data-testid="stMarkdownContainer"], .hero-title, .hero-sub { word-break: keep-all; overflow-wrap: break-word; }
 /* 키워드 표: 왼쪽 칸은 가장 긴 글자에 맞춰 한 줄로, 나머지 폭은 오른쪽 칸이 쓴다 */
 [data-testid="stMarkdownContainer"] table th:first-child,
 [data-testid="stMarkdownContainer"] table td:first-child { white-space: nowrap; width: 1%; }
@@ -106,7 +107,7 @@ div[data-testid="stButton"] button { border-radius: 999px; width: 100%; text-ali
 /* 보내기 버튼을 누르기 쉬운 크기로 */
 [data-testid="stChatInputSubmitButton"] { min-width: 44px; min-height: 44px; }
 /* 키보드 포커스 표시 */
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #00d4ff !important; outline-offset: 2px; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid currentColor !important; outline-offset: 2px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -205,6 +206,7 @@ if "admin" in st.query_params:
                     code, invite_id = signer.make_short(until.isoformat())
                 saved = registry.add(invite_id, label.strip(), until.isoformat()) if registry else False
                 st.session_state.last_made = (label.strip(), until.isoformat(), invite_id, code, saved)
+                st.session_state.pop("last_made_note", None)
                 print(f"[admin] 초대 코드 생성: '{label.strip()}' ~{until.isoformat()} (id {invite_id})", flush=True)
 
         def show_invite(lb: str, exp: str, invite_id: str, code: str) -> None:
@@ -220,7 +222,7 @@ if "admin" in st.query_params:
         if st.session_state.get("last_made"):
             lb, exp, invite_id, code, saved = st.session_state.last_made
             with st.container(border=True):
-                st.success("만들었어요! 아래 코드나 링크를 복사해서 보내세요.")
+                st.success(st.session_state.get("last_made_note") or "만들었어요! 아래 코드나 링크를 복사해서 보내세요.")
                 show_invite(lb, exp, invite_id, code)
                 if not saved:
                     st.caption("⚠️ 초대 목록 저장소(LOG_REPO)가 없어 이름이 저장되지 않았어요. 대화 기록에는 '초대 " + invite_id + "'로 보여요.")
@@ -235,27 +237,46 @@ if "admin" in st.query_params:
                 key=lambda kv: kv[1].get("created", ""),
                 reverse=True,
             )
-            if not items:
-                st.caption("아직 없어요.")
+            STATE = {"active": "✅ 사용 중", "revoked": "⛔ 막음", "expired": "⌛ 끝남"}
+            groups = {"active": [], "revoked": [], "expired": []}
             for invite_id, info in items:
+                groups[invite_status(info, today.isoformat())].append((invite_id, info))
+
+            def invite_row(invite_id: str, info: dict, state: str) -> None:
                 exp, lb = info.get("expires", ""), info.get("label", "")
-                if info.get("revoked"):
-                    state = "⛔ 막음"
-                elif exp < today.isoformat():
-                    state = "⌛ 끝남"
-                else:
-                    state = "✅ 사용 중"
                 used = QUESTIONS_PER_CODE - usage.remaining("id:" + invite_id)
-                with st.expander(f"{state} · {lb} · {exp}까지 · 질문 {used}/{QUESTIONS_PER_CODE}"):
-                    show_invite(lb, exp, invite_id, signer.make_short(exp, invite_id)[0])
+                with st.expander(f"{STATE[state]} · {lb} · {exp}까지 · 질문 {used}/{QUESTIONS_PER_CODE}"):
+                    if state == "expired":
+                        # 끝난 코드는 보내도 들어올 수 없으니 코드·링크를 보여 주지 않는다
+                        st.markdown(f"**{lb}** · {exp}에 끝났어요 · id `{invite_id}`")
+                        st.caption("이 코드로는 더 이상 들어올 수 없어요. 다시 쓰게 하려면 아래에서 기간을 늘리고 새 코드를 보내 주세요.")
+                    else:
+                        show_invite(lb, exp, invite_id, signer.make_short(exp, invite_id)[0])
                     st.caption(f"만든 때 {info.get('created', '-')}" + (f" · 바꾼 때 {info['changed']}" if info.get("changed") else ""))
+                    with st.form(f"extend-{invite_id}", border=False):
+                        c1, c2 = st.columns([3, 2], vertical_alignment="bottom")
+                        default = max(today + dt.timedelta(days=14), dt.date.fromisoformat(exp) if exp else today)
+                        new_exp = c1.date_input("새 마감일", value=default, min_value=today, key=f"exp-{invite_id}")
+                        if c2.form_submit_button("기간 바꾸기", use_container_width=True):
+                            if registry.extend(invite_id, new_exp.isoformat()):
+                                if info.get("revoked"):
+                                    registry.set_revoked(invite_id, False)
+                                print(f"[admin] 초대 기간 변경: '{lb}' ~{new_exp.isoformat()} (id {invite_id})", flush=True)
+                                st.session_state.last_made = (lb, new_exp.isoformat(), invite_id,
+                                                              signer.make_short(new_exp.isoformat(), invite_id)[0], True)
+                                st.session_state.last_made_note = (
+                                    "기간을 바꿨어요! 마감일이 코드에 들어 있어서 코드가 새로 나왔어요. "
+                                    "아래 새 코드나 링크를 보내 주세요 (예전 코드는 원래 마감일에 끝나요).")
+                                st.rerun()
+                            else:
+                                st.error("저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.")
                     col1, col2 = st.columns(2)
-                    if info.get("revoked"):
+                    if state == "revoked":
                         if col1.button("다시 허용", key=f"restore-{invite_id}", use_container_width=True):
                             registry.set_revoked(invite_id, False)
                             print(f"[admin] 초대 다시 허용: '{lb}' (id {invite_id})", flush=True)
                             st.rerun()
-                    elif col1.button("⛔ 막기", key=f"revoke-{invite_id}", use_container_width=True):
+                    elif state == "active" and col1.button("⛔ 막기", key=f"revoke-{invite_id}", use_container_width=True):
                         registry.set_revoked(invite_id, True)
                         print(f"[admin] 초대 막음: '{lb}' (id {invite_id})", flush=True)
                         st.rerun()
@@ -265,6 +286,21 @@ if "admin" in st.query_params:
                             registry.delete(invite_id)
                             print(f"[admin] 초대 삭제: '{lb}' (id {invite_id})", flush=True)
                             st.rerun()
+
+            if not items:
+                st.caption("아직 없어요.")
+            if items and not groups["active"]:
+                st.caption("지금 쓸 수 있는 초대가 없어요.")
+            for invite_id, info in groups["active"]:
+                invite_row(invite_id, info, "active")
+            for invite_id, info in groups["revoked"]:
+                invite_row(invite_id, info, "revoked")
+            if groups["expired"]:
+                # 끝난 초대는 따로 접어 둔다. 사용 중인 것과 섞여 보이지 않게
+                # (접는 상자 안에 접는 상자를 넣을 수 없어서 스위치로 펼친다)
+                if st.toggle(f"⌛ 끝난 초대 {len(groups['expired'])}개 보기", key="show_expired"):
+                    for invite_id, info in groups["expired"]:
+                        invite_row(invite_id, info, "expired")
         st.caption(
             "코드 오른쪽 위 복사 버튼으로 복사해요. 막으면 바로 적용되고, 이미 들어와 있던 사람도 다음 질문부터 막혀요. "
             "질문 수는 저장소에 저장돼서 서버가 다시 켜져도 이어서 세요."
@@ -390,7 +426,7 @@ if PORTFOLIO_URL:
 st.markdown('<p class="hero-title">💬 진용님에 대해 물어보세요</p>', unsafe_allow_html=True)
 st.markdown(
     '<p class="hero-sub"><b>질문에 답하고, 필요하면 연락까지 이어주는 에이전트</b><br>'
-    "경력·프로젝트 자료를 직접 찾아보고 답하며, 원하시면 진용님에게 메시지도 전해 드려요.</p>",
+    '<span class="dim">경력·프로젝트 자료를 직접 찾아보고 답하며, 원하시면 진용님에게 메시지도 전해 드려요.</span></p>',
     unsafe_allow_html=True,
 )
 

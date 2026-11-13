@@ -753,6 +753,41 @@ class SiteAdminRedirectTest(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         html = (root / "index.html").read_text(encoding="utf-8")
         url = json.loads((root / "data.json").read_text(encoding="utf-8"))["chatbotUrl"].rstrip("/")
-        m = re.search(r'location\.replace\("([^"]+)\?admin"\)', html)
+        m = re.search(r'location\.replace\("([^"?]+)\?admin', html)
         self.assertIsNotNone(m, "index.html 에 ?admin 이동 코드가 없음")
         self.assertEqual(m.group(1).rstrip("/"), url, "data.json 의 chatbotUrl 이 바뀌면 index.html 도 바꿔야 함")
+
+
+class InviteStatusTest(unittest.TestCase):
+    def test_status(self):
+        from agent import invite_status
+
+        self.assertEqual(invite_status({"expires": "2026-11-02"}, "2026-11-13"), "expired")
+        self.assertEqual(invite_status({"expires": "2026-11-13"}, "2026-11-13"), "active")  # 마감일 당일은 쓸 수 있음
+        self.assertEqual(invite_status({"expires": "2026-11-16", "revoked": True}, "2026-11-13"), "revoked")
+
+    def test_extend_keeps_id_and_makes_new_code(self):
+        import base64
+        import json as _json
+
+        from agent import ConversationLogger, InviteRegistry, InviteSigner
+
+        store = {"invites.json": {"2ea9": {"label": "A사", "expires": "2026-11-02", "created": "x", "used": 6}}}
+
+        def http(method, url, body=None):
+            if method == "GET":
+                data = base64.b64encode(_json.dumps(store["invites.json"]).encode()).decode()
+                return 200, {"sha": "s", "content": data}
+            store["invites.json"] = _json.loads(base64.b64decode(body["content"]))
+            return 200, {"content": {"sha": "s2"}}
+
+        reg = InviteRegistry(ConversationLogger("t", "r", http=http, background=False))
+        self.assertTrue(reg.extend("2ea9", "2026-11-30"))
+        self.assertEqual(store["invites.json"]["2ea9"]["expires"], "2026-11-30")
+        self.assertEqual(store["invites.json"]["2ea9"]["used"], 6)  # 질문 수는 그대로
+        self.assertFalse(reg.extend("2ea9", "11/30"))  # 날짜 형식이 틀리면 저장 안 함
+        signer = InviteSigner("0123456789abcdef0123")
+        old, _ = signer.make_short("2026-11-02", "2ea9")
+        new, _ = signer.make_short("2026-11-30", "2ea9")
+        self.assertNotEqual(old, new)
+        self.assertEqual(signer.read_short(new)[:2], ("2026-11-30", "2ea9"))
