@@ -72,7 +72,7 @@
 
 - 브랜치 `claude/portfolio-site` 에서 작업 → PR → **사용자가 "머지해줘"/"적용해줘" 하면** merge commit 으로 머지. 디자인처럼 큰 변경은 별도 브랜치 + 미리보기(Artifact)로 먼저 보여 주고 확인받는다.
 - 커밋 전에 꼭: `cd chatbot && python -m unittest -q` (지금 56개). 출력을 `| tail` 로 잘라서 종료 코드를 가리지 않는다.
-- 챗봇 답변을 바꾸면 실제 API 로 확인: `python chatbot/live_check.py` (전체 16개, 약 1센트) 또는 `--only <이름>`. 키가 없는 세션이면 확인 못 했다고 사용자에게 말한다.
+- 챗봇 답변을 바꾸면 실제 API 로 확인: `python chatbot/live_check.py` (전체 17개, 약 1센트) 또는 `--only <이름>`. 키가 없는 세션이면 확인 못 했다고 사용자에게 말한다.
 - 화면을 바꾸면 Playwright 로 PC(1440)·휴대폰(390, 320) 캡처, 가로 넘침·글자 대비 4.5:1·누르는 영역 44px 확인.
 - 관리자 화면은 로컬에서 가짜 GitHub 서버로 띄워 볼 수 있다: `LOG_API_URL=http://127.0.0.1:9900` (가짜 contents API) + `ADMIN_PASSWORD`, `INVITE_SECRET` 를 주고 `streamlit run chatbot/app.py`.
 - 프로젝트 스킬: `.claude/skills/` 의 `ui-ux-pro-max`, `unslop`, `karpathy-guidelines` ([목록](.claude/skills/README.md)).
