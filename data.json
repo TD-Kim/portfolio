@@ -74,16 +74,17 @@
       "title": "LMS (학습관리시스템) 개발",
       "period": "2023.12 — 2025.05",
       "org": "에이치에스 컴퍼니",
-      "desc": "요구사항 분석부터 아키텍처 설계, 배포까지 단독으로 맡았습니다. PASS 인증 로그인(Spring Security·JWT), 강의·수강·진도 API, Nginx-RTMP 동영상 스트리밍, inotify와 FFmpeg를 이용한 자동 변환, Docker CI/CD, DB 고가용성 환경을 구축했습니다.",
+      "desc": "요구사항 분석부터 아키텍처 설계, 배포까지 단독으로 맡았습니다. PASS 인증 로그인(Spring Security·JWT), 강의·수강·진도 API, React 18 + Vite 프론트엔드(Redux Toolkit·React Query, 동영상 플레이어 진도 관리), Nginx-RTMP 동영상 스트리밍, inotify와 FFmpeg를 이용한 자동 변환, Docker CI/CD, DB 고가용성 환경을 구축했습니다.",
       "tags": [
         "Spring Boot",
         "React 18",
+        "Vite",
+        "Redux Toolkit",
         "MariaDB",
         "Docker",
-        "Nginx",
-        "FFmpeg"
+        "Nginx"
       ],
-      "summary": "설계부터 배포까지 단독 수행. 인증·강의 API, 동영상 스트리밍, Docker CI/CD"
+      "summary": "설계부터 배포까지 단독 수행. Spring Boot API와 React 프론트엔드, 동영상 스트리밍, Docker CI/CD"
     },
     {
       "title": "클라우드 운영 자동화 (국가정보자원관리원)",
@@ -273,7 +274,8 @@
         "Oracle SQL 분석 및 튜닝으로 화면 조회 속도 개선",
         "기존 업무 쿼리 분석 및 수정, 데이터 처리 로직 개선",
         "Nexacro 화면 분석 및 UI 기능 수정·개선",
-        "단위 테스트 및 통합 테스트 수행, 오류 분석 및 개선 작업 진행"
+        "단위 테스트 및 통합 테스트 수행, 오류 분석 및 개선 작업 진행",
+        "C Batch를 Spring Batch(Job·Step) 기반과 일반 Java 배치로 전환"
       ]
     },
     {
@@ -286,6 +288,15 @@
         "MyBatis",
         "MariaDB 10.11",
         "React 18",
+        "Vite",
+        "Redux Toolkit",
+        "React Query(TanStack Query)",
+        "React Router",
+        "axios",
+        "hls.js",
+        "video.js",
+        "MUI",
+        "Ant Design",
         "HTML5",
         "CSS3(Sass)",
         "JavaScript (ES6)",
@@ -304,17 +315,26 @@
       "duties": [
         "단독 책임으로 요구사항 분석, 아키텍처 설계 및 전체 시스템 설계 수행",
         "DB 설계",
+        "Spring Security 구조 설계, Access·Refresh 토큰 발급·재발급, 권한 관리",
         "PASS 인증 기반 로그인/회원가입 기능 설계 및 구현 (Spring Security, JWT)",
         "OAuth2.0 기반 소셜 로그인 연동 (카카오·네이버·구글)",
         "강의 관리, 수강 신청, 진도 체크 등 핵심 비즈니스 로직 개발 (RESTful API)",
         "동영상 스트리밍 서버 구축 및 운영 (Nginx-RTMP, NFS 설정)",
         "업로드된 동영상 자동 변환 스크립트 구현 (inotify + FFmpeg)",
         "Firebase Cloud Messaging(FCM)으로 수강·공지 푸시 알림 구현",
-        "프론트엔드 React 컴포넌트 개발 및 UI 구현 (Sass, React Hooks)",
-        "Jenkins 서버 설치부터 빌드·배포 파이프라인 구성까지 직접 구축하고, GitHub Actions와 연동해 Docker 컨테이너 기반 배포 자동화",
-        "Nginx 리버스 프록시 및 로드밸런싱 설정",
+        "React 18 + Vite 기반 프론트엔드 프로젝트 직접 구축 (폴더 구조 설계, 개발·운영 환경 분리, 공통 컴포넌트 설계)",
+        "전역 상태(로그인·사용자 정보)는 Redux Toolkit, 서버 데이터(강의·수강 정보)는 React Query로 나눠 관리 (캐싱·재요청·로딩 상태 처리)",
+        "axios 인터셉터 기반 API 통신 모듈 구현 (공통 헤더·에러 처리, Access 토큰 만료 시 Refresh 토큰으로 자동 재발급 후 요청 재시도)",
+        "React Router 라우팅 및 역할(관리자·강사·수강생)별 접근 제어, 소셜·PASS 본인인증 로그인 화면 연동",
+        "hls.js·video.js 기반 강의 동영상 플레이어 구현 (시청 위치 주기 저장·이어보기, 미시청 구간 건너뛰기 방지로 정확한 진도율 관리)",
+        "관리자 화면(강의·회원·수강 관리), 수강 신청·내 강의실 화면 반응형(PC·모바일) 구현 (MUI, Ant Design, Sass, Tailwind)",
+        "페이지 단위 코드 분할(lazy·Suspense)과 memo로 렌더링 최적화, 빌드 결과를 Nginx로 서빙",
+        "Jenkins 서버 설치부터 빌드·배포 파이프라인 구성 및 GitHub Actions와 연동하여 Docker 컨테이너 기반 배포 자동화",
+        "Dockerfile 작성 및 docker-compose로 멀티 컨테이너 구성",
+        "Nginx SSL 인증서 적용(HTTPS) 및 리버스 프록시 및 로드밸런싱 설정",
         "MariaDB 복제(Replication) 기반 DB 고가용성 환경 구성",
-        "GitHub으로 코드 관리 및 이슈 트래킹, 배포 릴리즈 관리"
+        "GitHub으로 코드 관리 및 이슈 트래킹, 배포 릴리즈 관리",
+        "Red Hat 서버 초기 세팅 및 장애 분석"
       ]
     },
     {
@@ -622,8 +642,8 @@
     {
       "skill": "React",
       "where": "LMS(학습관리시스템) 개발, 기업 홈페이지 구축",
-      "did": "라우팅, 상태 관리, API 연동까지 프론트엔드 화면 전체를 직접 개발 (React Hooks, Sass)",
-      "level": "프론트엔드 전체 직접 개발"
+      "did": "LMS 프론트엔드를 React 18 + Vite로 처음부터 직접 구축 (폴더 구조·환경 분리·공통 컴포넌트). Redux Toolkit(전역 상태)과 React Query(서버 데이터)로 상태 관리를 나누고, axios 인터셉터로 토큰 자동 재발급, React Router로 역할별 접근 제어. hls.js·video.js 강의 플레이어(이어보기·건너뛰기 방지 진도율), 관리자·수강 화면 반응형 구현(MUI, Ant Design), 코드 분할·memo 최적화",
+      "level": "프론트엔드 구축부터 배포까지 전체 직접 함"
     },
     {
       "skill": "Docker",
