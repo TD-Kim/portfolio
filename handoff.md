@@ -52,6 +52,7 @@
   - 예/아니오 질문은 사실대로 먼저 답한다 (예: "파이썬 실무에서 써봤어요?" → "회사 업무에서는 쓰지 않았고…").
   - 여러 기술에 걸친 질문(CI/CD, 배포, DevOps)에는 내용이 많은 기술부터 말하고, 묻지 않은 약한 기술(Kubernetes·AWS 처럼 "확인 수준"·"실무 미사용")은 꺼내지 않는다. 이름으로 직접 물으면 사실대로 답한다.
   - 숫자가 없는 성과(SQL 튜닝)는 숫자를 만들지 않는다.
+  - 같은 회사의 프로젝트를 "이전 회사"라고 하지 않고, "~ 전에"처럼 시기를 물으면 프로젝트 기간 순서로 답한다.
 - 테마: `.streamlit/config.toml` 에 어두운(기본)·밝은 테마. 사이트가 챗봇 주소에 `embed_options=light_theme|dark_theme` 을 붙여 같은 테마로 연다.
 - 관리자(`챗봇주소?admin`): 초대 링크 · 대화 기록 · 방문 기록(오늘 실시간 + 지난 기록) · 메일 탭.
   - 초대 목록은 사용 중 / 막음을 먼저, 끝난 초대는 스위치 뒤에 숨긴다(코드·링크도 숨김).
@@ -63,7 +64,7 @@
 - 사용자에게 보기를 주고 고르게 해서 확인한 내용만 `skillNotes`·`careerDetails` 에 넣었다. **추측으로 채우지 않는다.** 모르는 건 보기(AskUserQuestion)를 만들어 묻는다 — 사용자가 직접 입력하기보다 고르는 걸 선호한다.
 - 최근 추가: LMS React 프론트엔드 7줄 (React 18 + Vite 구축, Redux Toolkit + React Query, axios 토큰 재발급, React Router 역할별 접근 제어, hls.js·video.js 플레이어 진도 관리, MUI·Ant Design 반응형, 코드 분할·memo).
 - 경력기술서 PDF 는 `tools/career_pdf/` 로 다시 만든다 (`build.py` 에 내용이 직접 들어 있음, 4쪽).
-  - PDF 와 `data.json` 의 차이(사이트에만 있음): LMS FCM 푸시 알림, 기업 홈페이지 GitHub Actions, K-water Tiles·Bootstrap. 사용자가 원하면 PDF 에도 넣는다.
+  - PDF 담당업무는 `data.json` 의 `careerDetails` 와 맞춰 두었다. 다만 1쪽 기술표는 PDF 에만 "프론트엔드" 칸이 있다. 4쪽을 넘지 않게 표 사이 간격으로 조정한다.
 - 공개하지 않는 정보: 전화번호, 주소, 생년월일, 사진. 이메일은 공개 가능. 기록에 남는 연락처는 가려서 저장.
 
 ---
@@ -72,7 +73,7 @@
 
 - 브랜치 `claude/portfolio-site` 에서 작업 → PR → **사용자가 "머지해줘"/"적용해줘" 하면** merge commit 으로 머지. 디자인처럼 큰 변경은 별도 브랜치 + 미리보기(Artifact)로 먼저 보여 주고 확인받는다.
 - 커밋 전에 꼭: `cd chatbot && python -m unittest -q` (지금 56개). 출력을 `| tail` 로 잘라서 종료 코드를 가리지 않는다.
-- 챗봇 답변을 바꾸면 실제 API 로 확인: `python chatbot/live_check.py` (전체 17개, 약 1센트) 또는 `--only <이름>`. 키가 없는 세션이면 확인 못 했다고 사용자에게 말한다.
+- 챗봇 답변을 바꾸면 실제 API 로 확인: `python chatbot/live_check.py` (전체 18개, 약 1.5센트) 또는 `--only <이름>`. 키가 없는 세션이면 확인 못 했다고 사용자에게 말한다.
 - 화면을 바꾸면 Playwright 로 PC(1440)·휴대폰(390, 320) 캡처, 가로 넘침·글자 대비 4.5:1·누르는 영역 44px 확인.
 - 관리자 화면은 로컬에서 가짜 GitHub 서버로 띄워 볼 수 있다: `LOG_API_URL=http://127.0.0.1:9900` (가짜 contents API) + `ADMIN_PASSWORD`, `INVITE_SECRET` 를 주고 `streamlit run chatbot/app.py`.
 - 프로젝트 스킬: `.claude/skills/` 의 `ui-ux-pro-max`, `unslop`, `karpathy-guidelines` ([목록](.claude/skills/README.md)).
@@ -80,9 +81,9 @@
 
 ## 6. 남은 일·알려진 점
 
-- [ ] 챗봇이 기업 홈페이지를 "이전 회사"라고 표현한 적이 있다 (실제로는 LMS 와 같은 에이치에스 컴퍼니). 자주 보이면 `prompt.md` 에 "같은 회사의 다른 프로젝트를 이전 회사라고 하지 않는다" 규칙 추가.
-- [ ] (선택) 경력기술서 1쪽 기술 분류표에 "프론트엔드" 칸 따로 두기 — 사용자에게 제안만 했다.
-- [ ] (선택) PDF 에 사이트에만 있는 3줄(FCM, GitHub Actions, Tiles·Bootstrap) 넣을지 사용자 확인.
+- [x] `prompt.md` 에 "회사가 같은 프로젝트를 이전 회사라고 하지 않는다" 규칙과 "시기를 물으면 프로젝트 기간 순서로, 같은 회사의 앞선 프로젝트를 빠뜨리지 않는다" 규칙 추가. 처음엔 "LMS 전에 뭐 했어요?"에 기업 홈페이지를 통째로 빠뜨렸다(회사 기준으로 셈). 고친 뒤 `live_check.py` 18/18 통과 (`same-company` 시나리오 추가).
+- [x] 경력기술서 1쪽 기술표에 "프론트엔드" 칸 분리 (React·jQuery·Bootstrap 은 프레임워크 칸에서 옮김). 사이트 `skillTable` 은 그대로.
+- [x] PDF 에 사이트에만 있던 3줄(FCM, GitHub Actions, Tiles·Bootstrap) 추가. 4쪽 유지를 위해 표 사이 간격 32pt → 28pt.
 - 채용 앱에 올린 링크는 `?ref=saramin` 처럼 앱별로 붙이면 방문 출처가 정확히 나온다 (안 붙여도 방문 수는 집계됨).
 - 사용자 기기에서 `?me` 를 한 번 열어 두면 본인 방문이 통계에서 빠진다 (브라우저마다, 카카오톡 안 브라우저도 따로).
 - AI TOP 100 은 "예선 완주"로 정리됨(본선 미진출). 학습 카드(GraphRAG, FDE)는 "강의 수료 · 혼자 연습 중".

@@ -107,6 +107,11 @@ SCENARIOS = [
      ["CI/CD 어디까지 해봤어요?"],
      lambda ans, s, box: (has("Jenkins")(ans[-1]) and not has("Kubernetes", "쿠버네티스", "kubectl", "AWS")(ans[-1]),
                           "Jenkins 언급 + Kubernetes·AWS 언급 없음")),
+    ("same-company", "같은 회사(에이치에스 컴퍼니)의 기업 홈페이지를 '이전 회사'라고 하지 않는가",
+     ["LMS 하기 전에는 무슨 일을 했어요?"],
+     lambda ans, s, box: (has("홈페이지")(ans[-1]) and not any(
+         has("이전 회사", "전 회사", "전 직장", "이전 직장")(x) for x in re.split(r"[.\n]", ans[-1]) if "홈페이지" in x),
+                          "기업 홈페이지 언급 + 그 문장에 '이전 회사' 없음")),
     ("cache", "프롬프트 캐싱이 실제로 맞는가 (두 번째 질문부터 캐시에서 읽음)",
      ["안녕하세요", "자격증은 뭐가 있어요?"],
      lambda ans, s, box: (s.usage["cache_read"] > 0, f"캐시 읽음 {s.usage['cache_read']:,} 토큰 / 씀 {s.usage['cache_write']:,} 토큰")),
