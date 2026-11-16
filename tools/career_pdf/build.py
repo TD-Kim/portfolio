@@ -3,8 +3,8 @@
     python3 tools/career_pdf/build.py tools/career_pdf      # career.html 생성
     node tools/career_pdf/render.js tools/career_pdf         # 김진용_경력기술서.pdf 생성
 
-내용은 아래 skills / projects 에 직접 적혀 있다 (2026-11-16 판: 원본 Word PDF + LMS React 7줄, 정관장 기간 오타 수정).
-data.json 의 careerDetails 와 일부 다르다: 사이트 쪽에만 FCM(LMS), GitHub Actions(기업 홈페이지), Tiles·Bootstrap(K-water) 줄이 있다.
+내용은 아래 skills / projects 에 직접 적혀 있다 (2026-11-16 판: 원본 Word PDF + LMS React 7줄, 정관장 기간 오타 수정,
+사이트에만 있던 FCM(LMS)·GitHub Actions(기업 홈페이지)·Tiles·Bootstrap(K-water) 줄 추가, 기술표에 프론트엔드 칸 분리).
 """
 import html
 import sys
@@ -14,7 +14,8 @@ out = Path(sys.argv[1])
 
 skills = [
     ("개발언어", "Java, JSP, HTML5, XML, CSS3, JavaScript(Ajax 활용), Python"),
-    ("프레임워크", "Spring, Spring Boot, ibatis, mybatis , Tiles, Bootstrap, jQuery, React"),
+    ("프레임워크", "Spring, Spring Boot, ibatis, mybatis, Tiles"),
+    ("프론트엔드", "React 18, Vite, Redux Toolkit, React Query, React Router, axios, MUI, Ant Design, Sass, Tailwind, jQuery, Bootstrap"),
     ("협업 툴", "tortoise SVN, subversion, redmine, github"),
     ("개발 툴", "Eclipse, IntelliJ, SQL Developer, Maven, Nexacro, WebSquare5, OzReport"),
     ("데이터베이스", "Oracle, MySQL, MariaDB, PostgreSQL, Cubrid, Firebase"),
@@ -48,6 +49,7 @@ projects = [
       "강의 관리, 수강 신청, 진도 체크 등 핵심 비즈니스 로직 개발 (RESTful API)",
       "동영상 스트리밍 서버 구축 및 운영 (Nginx-RTMP, NFS 설정)",
       "업로드된 동영상 자동 변환 스크립트 구현 (inotify + FFmpeg)",
+      "Firebase Cloud Messaging(FCM)으로 수강·공지 푸시 알림 구현",
       "React 18 + Vite 기반 프론트엔드 프로젝트 직접 구축 (폴더 구조 설계, 개발·운영 환경 분리, 공통 컴포넌트 설계)",
       "전역 상태(로그인·사용자 정보)는 Redux Toolkit, 서버 데이터(강의·수강 정보)는 React Query로 나눠 관리 (캐싱·재요청·로딩 상태 처리)",
       "axios 인터셉터 기반 API 통신 모듈 구현 (공통 헤더·에러 처리, Access 토큰 만료 시 Refresh 토큰으로 자동 재발급 후 요청 재시도)",
@@ -62,14 +64,14 @@ projects = [
       "GitHub으로 코드 관리 및 이슈 트래킹, 배포 릴리즈 관리",
       "Red Hat 서버 초기 세팅 및 장애 분석"]),
     (6, "기업 홈페이지 구축 및 클라이언트 프로그램 개선", "2023-02 ~ 2023-12",
-     "Java 17, Spring Boot 3.3.2, MyBatis, MariaDB 10.11, jQuery 3.x, HTML5, CSS3(Sass), JavaScript(ES6), Docker, Nginx, GitHub, Redmine",
+     "Java 17, Spring Boot 3.3.2, MyBatis, MariaDB 10.11, jQuery 3.x, HTML5, CSS3(Sass), JavaScript(ES6), Docker, Nginx, GitHub, Redmine, GitHub Actions",
      ["요구사항 분석 및 시스템 아키텍처 설계",
       "프론트엔드 React 컴포넌트 개발 및 UI/UX 개선 (Sass, jQuery 활용)",
       "백엔드 RESTful API 설계 및 구현(Spring Boot, MyBatis)",
       "데이터베이스 모델링 및 쿼리 최적화(MariaDB)",
       "Docker 기반 컨테이너화",
       "Nginx 리버스 프록시 설정 및 부하 분산 환경 구성",
-      "GitHub 를 활용한 코드 관리 및 CI/CD 파이프라인 구축"]),
+      "GitHub으로 코드를 관리하고, GitHub Actions로 빌드·배포 CI/CD 파이프라인 구축"]),
     (5, "국가정보자원관리원 클라우드 운영 자동화 개발", "2022-05 ~ 2023-02",
      "Window 10, egovFramework 3.7, Postgresql, PGAdmin, Cubrid 11, Cubrid Manager 10, Maven, Tomcat 8.5, Apache 2.4, "
      "JBOSS 7.4, Java 1.8, VisualSVN, Mybatis, Spring, jsp, Ansible",
@@ -82,9 +84,10 @@ projects = [
      "Window 10, egovFramework 3.7, Oracle 10g, SQL developer, SQLgate, Maven, Jeus 6, Java 1.7, SVN, Ibatis",
      ["AS-IS TO-BE 데이터베이스 마이그레이션", "데이터 정합성 확인 및 검증", "쿠폰 발행 기능 개선", "통계 자료 추출 쿼리 작성"]),
     (2, "K-water 업무시스템 통합 구축", "2021-03 ~ 2021-12",
-     "Window 10, egovFramework 3.7, Oracle 11g, SQL developer, SQLgate, Maven, Tomcat 8.5, Java 1.8, SVN, Mybatis, WebSquare, OzReport",
+     "Window 10, egovFramework 3.7, Oracle 11g, SQL developer, SQLgate, Maven, Tomcat 8.5, Java 1.8, SVN, Mybatis, WebSquare, OzReport, Tiles, Bootstrap",
      ["DA#5 사용한 ERD 설계 보조", "분양시스템 분양계획, 계약관리 개발", "SAP 데이터 가공 및 연계", "웹스퀘어를 사용한 화면 설계",
-      "다수의 계산 로직 및 결과 시뮬레이션 개발", "OzReport로 분양 계약서·계약 현황 등 출력용 리포트 개발"]),
+      "다수의 계산 로직 및 결과 시뮬레이션 개발", "OzReport로 분양 계약서·계약 현황 등 출력용 리포트 개발",
+      "Tiles로 JSP 공통 레이아웃(헤더·메뉴·푸터)을 구성하고 Bootstrap으로 화면 구현"]),
     (1, "헬스케어 머천다이징 솔루션", "2020-12 ~ 2021-02",
      "Window 10, egovFramework 3.9, Oracle 11g, SQL developer, Maven, Tomcat 8.5, Java 1.8, SVN",
      ["eXERD를 활용하여 DB를 설계, 단어사전, 용어사전 정의", "데이터들 사이의 관계를 정의하여 참조 관계 정의",
@@ -121,7 +124,7 @@ doc = f"""<!doctype html>
   body {{ font-family: "Nanum Myeongjo", serif; color: #000; }}
   table {{ width: 100%; border-collapse: collapse; table-layout: fixed; border-top: 1.5pt solid #000; border-bottom: 1.5pt solid #000;
           break-inside: avoid; page-break-inside: avoid; }}
-  table + table {{ margin-top: 32pt; }}
+  table + table {{ margin-top: 28pt; }}
   td {{ border-top: 0.75pt solid #000; font-size: 9.96pt; line-height: 16pt; padding: 2.5pt 4pt; vertical-align: middle; }}
   tr:first-child td {{ border-top: 0; }}
   .head td {{ background: #e2e2e2; font-family: "Nanum Gothic", sans-serif; font-weight: 800; font-size: 9pt; padding: 4pt 7pt;
