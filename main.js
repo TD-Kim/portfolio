@@ -613,6 +613,12 @@
     });
   }
 
+  /* ---------- 첫 화면이 보이는 동안 떠 있는 버튼 숨기기 (휴대폰 너비에서만, CSS 가 처리) ---------- */
+  const fab = $(".ask-fab"), hero = $(".hero");
+  if (fab && hero && "IntersectionObserver" in window) {
+    new IntersectionObserver(([e]) => fab.classList.toggle("on-hero", e.isIntersecting), { threshold: 0.15 }).observe(hero);
+  }
+
   /* ---------- 지금 보고 있는 섹션을 메뉴에 표시 ---------- */
   const navLinks = $$(".nav nav a");
   const sections = navLinks.map((a) => $(a.getAttribute("href")));

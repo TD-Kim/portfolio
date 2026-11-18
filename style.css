@@ -183,10 +183,11 @@ a { color: inherit; text-decoration: none; }
 .about-text p { font-size: 17px; color: var(--text-2); margin-bottom: 12px; }
 .about-text p:first-child { font-size: 20px; line-height: 32px; color: var(--text); font-weight: 500; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.stat { padding: 20px; background: var(--card); }
+.stat { padding: 20px; background: var(--card); display: flex; flex-direction: column; } /* 라벨이 두 줄로 꺾여도 숫자는 같은 줄에 */
 .stat + .stat { border-left: 1px solid var(--line); }
 .stat dd { font-size: 32px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; }
-.stat dt { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.stat dt { font-size: 13px; color: var(--muted); }
+.stat dd { margin-top: auto; padding-top: 8px; }
 .skills { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 48px; }
 .skills li {
   font-family: var(--mono); font-size: 13px; color: var(--text-2);
@@ -324,7 +325,8 @@ a.card:hover .card-arrow { color: var(--text); }
 .note .level { color: var(--muted); }
 
 /* 프로젝트 카드 펼치기: 맡은 일 3개 + 챗봇으로 이어지는 버튼 */
-.projects:not(.learning) { align-items: start; } /* 한 카드를 펼쳐도 옆 카드가 같이 늘어나지 않게 */
+/* 평소에는 한 줄의 카드 높이를 맞추고, 한 카드를 펼치면 옆 카드가 같이 늘어나지 않게 */
+.projects:not(.learning):has(.card-more:not([hidden])) { align-items: start; }
 .projects:not(.learning) .card { cursor: pointer; }
 .projects:not(.learning) .card.open { border-color: color-mix(in srgb, var(--accent) 35%, transparent); cursor: default; }
 .more {
@@ -422,7 +424,9 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
   .contact-email { font-size: 18px; }
   .footer { padding-bottom: 96px; } /* 떠 있는 버튼이 맨 아래 글자를 가리지 않게 */
   .ask-fab span { display: none; }
-  .ask-fab { width: 48px; padding: 0; justify-content: center; }
+  .ask-fab { width: 48px; padding: 0; justify-content: center; transition: opacity 200ms var(--ease), visibility 200ms var(--ease), transform 200ms var(--ease); }
+  /* 첫 화면에는 같은 버튼과 챗봇 예시가 있어서, 떠 있는 버튼이 예시 글자를 가리지 않게 숨긴다 */
+  .ask-fab.on-hero { opacity: 0; visibility: hidden; transform: translateY(8px); }
   .nav-inner { padding: 0 12px; }
 }
 @media (max-width: 560px) {
@@ -432,8 +436,9 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
   .nav nav a { padding: 0 8px; }
   .stats { grid-template-columns: 1fr; }
   .stat + .stat { border-left: 0; border-top: 1px solid var(--line); }
-  .stat { display: flex; justify-content: space-between; align-items: baseline; }
-  .stat dt { margin-top: 0; order: -1; }
+  .stat { flex-direction: row; justify-content: space-between; align-items: baseline; }
+  .stat dt { order: -1; }
+  .stat dd { margin-top: 0; padding-top: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
